@@ -71,6 +71,9 @@ pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供
 
 ## 结构与 Git
 
+远程仓库：[lijinguojiuli/Find-the-path](https://github.com/lijinguojiuli/Find-the-path)。
+桌面原始 README 与远程初始说明内容一致，已收录到 [docs/desktop/README.md](docs/desktop/README.md)。
+
 - `src/robot_path_lab`：可安装的 Python 包；后续按阶段添加模型、算法、控制器和界面。
 - `tests`：测试计划与后续测试用例。
 - `pyproject.toml`：构建、依赖、入口与 pytest 设置。
