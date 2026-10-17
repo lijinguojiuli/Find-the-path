@@ -1,0 +1,100 @@
+"""Grid state and validation, with no dependency on a graphical library."""
+
+from collections.abc import Iterable
+
+Position = tuple[int, int]
+
+
+class Grid:
+    """Store a fixed-size grid using (x, y) coordinates.
+
+    Width is ``cols`` and height is ``rows``. Endpoints may overlap each
+    other, but neither may occupy an obstacle. All changes go through
+    validated methods; callers receive an immutable obstacle snapshot.
+    """
+
+    def __init__(
+        self,
+        rows: int,
+        cols: int,
+        *,
+        start: Position | None = None,
+        goal: Position | None = None,
+        obstacles: Iterable[Position] = (),
+    ) -> None:
+        for name, value in (("rows", rows), ("cols", cols)):
+            if type(value) is not int:
+                raise TypeError(f"{name} must be an integer.")
+            if value <= 0:
+                raise ValueError(f"{name} must be positive.")
+
+        self._rows = rows
+        self._cols = cols
+        self._start: Position | None = None
+        self._goal: Position | None = None
+        self._obstacles: set[Position] = set()
+        for position in obstacles:
+            self.add_obstacle(position)
+        self.set_start(start)
+        self.set_goal(goal)
+
+    @property
+    def rows(self) -> int:
+        return self._rows
+
+    @property
+    def cols(self) -> int:
+        return self._cols
+
+    @property
+    def start(self) -> Position | None:
+        return self._start
+
+    @property
+    def goal(self) -> Position | None:
+        return self._goal
+
+    @property
+    def obstacles(self) -> frozenset[Position]:
+        return frozenset(self._obstacles)
+
+    def in_bounds(self, position: Position) -> bool:
+        """Return whether a well-formed coordinate lies inside the grid."""
+        if not isinstance(position, tuple) or len(position) != 2:
+            raise TypeError("A position must be an (x, y) tuple.")
+        x, y = position
+        if type(x) is not int or type(y) is not int:
+            raise TypeError("Position coordinates must be integers.")
+        return 0 <= x < self.cols and 0 <= y < self.rows
+
+    def _require_in_bounds(self, position: Position) -> None:
+        if not self.in_bounds(position):
+            raise ValueError(f"Position {position} is outside the grid.")
+
+    def _validate_endpoint(self, position: Position | None) -> None:
+        if position is not None:
+            self._require_in_bounds(position)
+            if position in self._obstacles:
+                raise ValueError("An endpoint cannot occupy an obstacle.")
+
+    def set_start(self, position: Position | None) -> None:
+        self._validate_endpoint(position)
+        self._start = position
+
+    def set_goal(self, position: Position | None) -> None:
+        self._validate_endpoint(position)
+        self._goal = position
+
+    def add_obstacle(self, position: Position) -> None:
+        self._require_in_bounds(position)
+        if position == self.start or position == self.goal:
+            raise ValueError("An obstacle cannot occupy an endpoint.")
+        self._obstacles.add(position)
+
+    def remove_obstacle(self, position: Position) -> None:
+        self._require_in_bounds(position)
+        self._obstacles.discard(position)
+
+    def is_blocked(self, position: Position) -> bool:
+        self._require_in_bounds(position)
+        return position in self._obstacles

@@ -1,0 +1,93 @@
+"""Draw a grid without changing its state or handling user input."""
+
+import pygame
+
+from robot_path_lab.grid import Grid
+
+PADDING = 24
+HEADER_HEIGHT = 112
+FOOTER_HEIGHT = 40
+
+BACKGROUND = (15, 23, 42)
+EMPTY = (238, 242, 247)
+OBSTACLE = (51, 65, 85)
+START = (34, 197, 94)
+GOAL = (248, 113, 113)
+GRID_LINE = (148, 163, 184)
+TEXT = (226, 232, 240)
+MUTED_TEXT = (148, 163, 184)
+
+
+class GridRenderer:
+    """Translate grid coordinates to pixel rectangles and render them."""
+
+    def __init__(self, cell_size: int = 24) -> None:
+        if type(cell_size) is not int or cell_size < 8:
+            raise ValueError("Cell size must be an integer of at least 8 pixels.")
+        self.cell_size = cell_size
+        self._title_font = pygame.font.Font(None, 32)
+        self._font = pygame.font.Font(None, 22)
+        self._small_font = pygame.font.Font(None, 18)
+
+    def window_size(self, grid: Grid) -> tuple[int, int]:
+        return (
+            max(720, grid.cols * self.cell_size + 2 * PADDING),
+            HEADER_HEIGHT + grid.rows * self.cell_size + FOOTER_HEIGHT,
+        )
+
+    def grid_rect(self, grid: Grid) -> pygame.Rect:
+        width = grid.cols * self.cell_size
+        height = grid.rows * self.cell_size
+        return pygame.Rect((self.window_size(grid)[0] - width) // 2, HEADER_HEIGHT, width, height)
+
+    def draw(self, surface: pygame.Surface, grid: Grid) -> None:
+        surface.fill(BACKGROUND)
+        surface.blit(self._title_font.render("Robot Path Planning Lab", True, TEXT), (PADDING, 18))
+        obstacles = grid.obstacles
+        summary = f"{grid.rows} rows x {grid.cols} columns  |  {len(obstacles)} obstacles"
+        surface.blit(self._font.render(summary, True, MUTED_TEXT), (PADDING, 52))
+
+        for index, (label, color) in enumerate(
+            (("Empty", EMPTY), ("Obstacle", OBSTACLE), ("Start (S)", START), ("Goal (G)", GOAL))
+        ):
+            x = PADDING + index * 150
+            pygame.draw.rect(surface, color, (x, 82, 14, 14))
+            surface.blit(self._small_font.render(label, True, TEXT), (x + 22, 82))
+
+        area = self.grid_rect(grid)
+        for y in range(grid.rows):
+            for x in range(grid.cols):
+                position = (x, y)
+                cell = pygame.Rect(
+                    area.left + x * self.cell_size,
+                    area.top + y * self.cell_size,
+                    self.cell_size,
+                    self.cell_size,
+                )
+                label = ""
+                if position == grid.start == grid.goal:
+                    pygame.draw.polygon(surface, START, (cell.topleft, cell.topright, cell.bottomleft))
+                    pygame.draw.polygon(surface, GOAL, (cell.topright, cell.bottomright, cell.bottomleft))
+                    label = "S/G"
+                else:
+                    color = EMPTY
+                    if position in obstacles:
+                        color = OBSTACLE
+                    elif position == grid.start:
+                        color, label = START, "S"
+                    elif position == grid.goal:
+                        color, label = GOAL, "G"
+                    pygame.draw.rect(surface, color, cell)
+                if label and self.cell_size >= 20:
+                    text = self._small_font.render(label, True, BACKGROUND)
+                    surface.blit(text, text.get_rect(center=cell.center))
+
+        for x in range(grid.cols + 1):
+            pixel_x = area.left + x * self.cell_size
+            pygame.draw.line(surface, GRID_LINE, (pixel_x, area.top), (pixel_x, area.bottom))
+        for y in range(grid.rows + 1):
+            pixel_y = area.top + y * self.cell_size
+            pygame.draw.line(surface, GRID_LINE, (area.left, pixel_y), (area.right, pixel_y))
+
+        footer = self._small_font.render("Static preview  |  Esc or close window to exit", True, MUTED_TEXT)
+        surface.blit(footer, (PADDING, self.window_size(grid)[1] - 26))
