@@ -1,6 +1,7 @@
 import { Grid, MODES, applyEdit, cellFromPoint, createDemoGrid, validDimensions } from './model.mjs';
 import { LESSON_STEPS, newLesson, advanceLesson } from './lesson.mjs';
 import { SearchPlayback } from './playback.mjs';
+import { ALGORITHMS } from './search.mjs';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -21,9 +22,24 @@ const equal = (a, b) => a && b && a[0] === b[0] && a[1] === b[1];
 const playback = new SearchPlayback();
 const searchWorker = new Worker(new URL('./search-worker.mjs', import.meta.url), { type: 'module' });
 let mapVersion = 0, requestId = 0, searching = false, lastFrame = null;
+let measurements = [];
+
+function renderMetrics() {
+  const selected = measurements.find(item => item.algorithm === $('algorithm').value);
+  const duration = value => value < .001 ? '<0.001' : value.toFixed(3);
+  $('metric-summary').textContent = selected ? `${ALGORITHMS[selected.algorithm]} · ${selected.pathLength === null ? '不可达' : selected.pathLength + ' 步'} · 访问 ${selected.result.visitedCount} · ${duration(selected.elapsedMs)} 毫秒（仅算法）` : '搜索后显示步数、访问节点和算法耗时';
+  $('comparison-body').replaceChildren(...measurements.map(item => {
+    const row = document.createElement('tr');
+    for (const value of [ALGORITHMS[item.algorithm], item.pathLength ?? '不可达', item.result.visitedCount, duration(item.elapsedMs)]) {
+      const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
+    }
+    return row;
+  }));
+}
 
 function syncSearchControls() {
   $('search-button').disabled = searching;
+  $('compare-button').disabled = searching;
   $('search-button').textContent = searching ? '计算中…' : '开始搜索';
   $('pause-search').disabled = !['playing', 'paused'].includes(playback.state);
   $('pause-search').textContent = playback.state === 'paused' ? '继续' : '暂停';
@@ -33,13 +49,15 @@ function syncSearchControls() {
     ? `${labels[playback.state]} · ${playback.index}/${playback.result.visitedCount}` : labels.idle;
 }
 function invalidateSearch() {
-  mapVersion++; requestId++; searching = false; playback.reset(); syncSearchControls();
+  mapVersion++; requestId++; searching = false; playback.reset(); measurements = []; renderMetrics(); syncSearchControls();
 }
 searchWorker.onmessage = ({ data }) => {
   if (data.id !== requestId || data.version !== mapVersion) return;
   searching = false;
   if (data.error) { setStatus(data.error, true); syncSearchControls(); return; }
   playback.load(data.result); lastFrame = null;
+  measurements = data.measurements; renderMetrics();
+  if (measurements.length > 1) $('comparison-details').open = true;
   setStatus(data.result.found ? '计算完成，正在按访问顺序播放。可以暂停后单步观察。' : '目标不可达：正在播放已探索区域。', !data.result.found);
   syncSearchControls(); draw();
 };
@@ -245,11 +263,13 @@ canvas.addEventListener('contextmenu', event => event.preventDefault());
 canvas.addEventListener('focus', draw); canvas.addEventListener('blur', draw);
 for (const button of document.querySelectorAll('[data-mode]')) button.addEventListener('click', () => chooseMode(button.dataset.mode));
 $('undo-button').addEventListener('click', undo);
-$('search-button').addEventListener('click', () => {
+function startSearch(compare = false) {
   playback.reset(); searching = true; requestId++;
-  searchWorker.postMessage({ id: requestId, version: mapVersion, map: grid.snapshot(), algorithm: $('algorithm').value });
+  searchWorker.postMessage({ id: requestId, version: mapVersion, map: grid.snapshot(), algorithm: $('algorithm').value, compare });
   syncSearchControls(); draw();
-});
+}
+$('search-button').addEventListener('click', () => startSearch());
+$('compare-button').addEventListener('click', () => startSearch(true));
 $('pause-search').addEventListener('click', () => {
   if (playback.state === 'paused') playback.resume(); else playback.pause();
   syncSearchControls();
@@ -329,6 +349,6 @@ function animate(timestamp) {
 }
 document.addEventListener('visibilitychange', () => { lastFrame = null; if (document.hidden) { playback.pause(); syncSearchControls(); } });
 requestAnimationFrame(animate);
-syncInputs(); refresh(); fullscreenUI(); syncSearchControls();
+syncInputs(); refresh(); fullscreenUI(); syncSearchControls(); renderMetrics();
 if (!hasSeenWelcome() || params.get('tutorial') === '1') openWelcome();
 if (!validDimensions(initialRows, initialCols)) setStatus('网址中的地图尺寸无效，已载入 20×30 示例地图。', true);
