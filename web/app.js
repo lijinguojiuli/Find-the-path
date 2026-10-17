@@ -1,5 +1,6 @@
 import { Grid, MODES, applyEdit, cellFromPoint, createDemoGrid, validDimensions } from './model.mjs';
 import { LESSON_STEPS, newLesson, advanceLesson } from './lesson.mjs';
+import { SearchPlayback } from './playback.mjs';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -17,6 +18,32 @@ const canvas = $('grid-canvas');
 const ctx = canvas.getContext('2d');
 const palette = { empty: '#ffffff', obstacle: '#334a50', start: '#3aaf88', goal: '#e7806a' };
 const equal = (a, b) => a && b && a[0] === b[0] && a[1] === b[1];
+const playback = new SearchPlayback();
+const searchWorker = new Worker(new URL('./search-worker.mjs', import.meta.url), { type: 'module' });
+let mapVersion = 0, requestId = 0, searching = false, lastFrame = null;
+
+function syncSearchControls() {
+  $('search-button').disabled = searching;
+  $('search-button').textContent = searching ? '计算中…' : '开始搜索';
+  $('pause-search').disabled = !['playing', 'paused'].includes(playback.state);
+  $('pause-search').textContent = playback.state === 'paused' ? '继续' : '暂停';
+  $('step-search').disabled = !playback.result || playback.state === 'completed';
+  const labels = { idle: '等待搜索', playing: '播放中', paused: '已暂停', completed: playback.result?.found ? '路径已显示' : '目标不可达' };
+  $('search-progress').textContent = searching ? '正在计算搜索结果…' : playback.result
+    ? `${labels[playback.state]} · ${playback.index}/${playback.result.visitedCount}` : labels.idle;
+}
+function invalidateSearch() {
+  mapVersion++; requestId++; searching = false; playback.reset(); syncSearchControls();
+}
+searchWorker.onmessage = ({ data }) => {
+  if (data.id !== requestId || data.version !== mapVersion) return;
+  searching = false;
+  if (data.error) { setStatus(data.error, true); syncSearchControls(); return; }
+  playback.load(data.result); lastFrame = null;
+  setStatus(data.result.found ? '计算完成，正在按访问顺序播放。可以暂停后单步观察。' : '目标不可达：正在播放已探索区域。', !data.result.found);
+  syncSearchControls(); draw();
+};
+searchWorker.onerror = () => { searching = false; setStatus('搜索模块加载失败，请刷新页面重试。', true); syncSearchControls(); };
 
 function setStatus(message, error = false) {
   $('status-text').textContent = message;
@@ -81,6 +108,7 @@ function edit(cell) {
   const beforeMode = mode;
   const result = applyEdit(grid, mode, cell);
   if (result.changed) {
+    invalidateSearch();
     history.push({ map: before, mode: beforeMode, lesson: beforeLesson });
     if (history.length > 60) history.shift();
     const previousStep = lesson.step;
@@ -94,6 +122,7 @@ function edit(cell) {
   refresh();
 }
 function restartLessonForMapChange() {
+  invalidateSearch();
   if (lesson.active) { lesson = newLesson(); chooseMode(MODES.obstacle, false); }
   hover = null;
   focusCell = [0, 0];
@@ -102,6 +131,7 @@ function undo() {
   const previous = history.pop();
   if (!previous) return;
   grid = new Grid(previous.map.rows, previous.map.cols, previous.map);
+  invalidateSearch();
   lesson = previous.lesson;
   chooseMode(previous.mode, false);
   syncInputs();
@@ -151,10 +181,13 @@ function draw() {
   ctx.fillStyle = palette.empty;
   ctx.fillRect(left, top, grid.cols * size, grid.rows * size);
   const obstacles = grid.obstacles;
+  const visited = new Set(playback.visited.map(String)), path = new Set(playback.path.map(String));
   for (let y = 0; y < grid.rows; y++) {
     for (let x = 0; x < grid.cols; x++) {
       const pixelX = left + x * size, pixelY = top + y * size;
       const cell = [x, y];
+      if (visited.has(String(cell))) roundedCell(pixelX, pixelY, size, '#b9d9ee');
+      if (path.has(String(cell))) roundedCell(pixelX, pixelY, size, '#f4ca6e');
       if (obstacles.has(`${x},${y}`)) roundedCell(pixelX, pixelY, size, palette.obstacle);
       const start = equal(cell, grid.start), goal = equal(cell, grid.goal);
       if (start || goal) {
@@ -212,6 +245,19 @@ canvas.addEventListener('contextmenu', event => event.preventDefault());
 canvas.addEventListener('focus', draw); canvas.addEventListener('blur', draw);
 for (const button of document.querySelectorAll('[data-mode]')) button.addEventListener('click', () => chooseMode(button.dataset.mode));
 $('undo-button').addEventListener('click', undo);
+$('search-button').addEventListener('click', () => {
+  playback.reset(); searching = true; requestId++;
+  searchWorker.postMessage({ id: requestId, version: mapVersion, map: grid.snapshot(), algorithm: $('algorithm').value });
+  syncSearchControls(); draw();
+});
+$('pause-search').addEventListener('click', () => {
+  if (playback.state === 'paused') playback.resume(); else playback.pause();
+  syncSearchControls();
+});
+$('step-search').addEventListener('click', () => { playback.step(); syncSearchControls(); draw(); });
+$('reset-search').addEventListener('click', () => { invalidateSearch(); setStatus('搜索已重置，地图保持原样。点击「开始搜索」重新播放。'); draw(); });
+$('search-speed').addEventListener('input', () => { playback.setRate(Number($('search-speed').value)); $('speed-label').textContent = `${playback.rate} 节点/秒`; });
+$('algorithm').addEventListener('change', () => { invalidateSearch(); setStatus('算法已切换。点击「开始搜索」查看新的访问顺序。'); draw(); });
 $('clear-button').addEventListener('click', () => {
   if (!grid.obstacleCount) { setStatus('地图上已经没有障碍了。'); return; }
   saveUndo();
@@ -273,6 +319,16 @@ document.addEventListener('keydown', event => {
   }
 });
 new ResizeObserver(draw).observe($('board-container'));
-syncInputs(); refresh(); fullscreenUI();
+function animate(timestamp) {
+  const previous = playback.index;
+  const beforeState = playback.state;
+  if (lastFrame !== null) playback.update((timestamp - lastFrame) / 1000);
+  lastFrame = timestamp;
+  if (previous !== playback.index || beforeState !== playback.state) { syncSearchControls(); draw(); }
+  requestAnimationFrame(animate);
+}
+document.addEventListener('visibilitychange', () => { lastFrame = null; if (document.hidden) { playback.pause(); syncSearchControls(); } });
+requestAnimationFrame(animate);
+syncInputs(); refresh(); fullscreenUI(); syncSearchControls();
 if (!hasSeenWelcome() || params.get('tutorial') === '1') openWelcome();
 if (!validDimensions(initialRows, initialCols)) setStatus('网址中的地图尺寸无效，已载入 20×30 示例地图。', true);

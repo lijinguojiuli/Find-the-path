@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#087f73">
   <meta name="description" content="中文机器人地图编辑实验台。四步动手教程，学习障碍与起终点编辑。支持保留系统任务栏的大屏模式。">
-  <title>寻路实验室 · 从一张地图开始</title>
+  <title>寻路实验室 · 观察算法，走出路线</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='11' fill='%23087f73'/%3E%3Cpath d='M11 27V13h18v14H19' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./styles.css">
 </head>
@@ -23,15 +23,16 @@
 <div class="app-shell">
   <header class="topbar">
     <a class="brand" href="./" aria-label="寻路实验室首页"><span class="brand-icon"><svg><use href="#i-path"/></svg></span><span>寻路实验室<small>让探索，从这里出发</small></span></a>
-    <span class="chapter"><span></span>地图编辑入门</span>
+    <span class="chapter"><span></span>机器人路径规划</span>
     <div class="header-actions">
       <button id="help-button" class="button quiet" aria-label="新手教程"><svg><use href="#i-help"/></svg><span>新手教程</span><kbd>H</kbd></button>
       <button id="fullscreen-button" class="button fullscreen" title="铺满浏览器可用区域，保留底部系统任务栏"><svg><use href="#i-expand"/></svg><span id="fullscreen-label">大屏模式</span><kbd>F</kbd></button>
     </div>
   </header>
-  <section class="page-heading"><div><div class="eyebrow">动手探索 · 第一课</div><h1>先画好地图，再开启探索<span>。</span></h1><p>放置障碍，设置起终点。跟着教程，一分钟就能上手。</p></div><div class="ready"><span></span>地图已就绪</div></section>
+  <section class="page-heading"><div><div class="eyebrow">动手探索 · 路径规划</div><h1>画好地图，观察算法如何找到路<span>。</span></h1><p>选择算法，点击「开始搜索」。用暂停与单步，慢慢看懂每一步。</p></div><div class="ready"><span></span>实验台已就绪</div></section>
   <main class="layout">
     <aside class="sidebar">
+      <section class="card quick-guide"><h2>搜索怎么玩？</h2><ol><li>用工具设置地图、起点和终点。</li><li>选择算法，点击「开始搜索」。蓝色是访问过的节点，金色是最终路径。</li><li>点「暂停」后可单步观察；调节速度改变播放快慢。</li><li>「重置搜索」清除播放，再次搜索即可重来。修改地图也会清除旧结果。</li></ol><p>未探索的空地保持白色，起点和终点始终保留原色。</p></section>
       <section class="card lesson-card" aria-labelledby="lesson-title">
         <div class="card-heading"><span class="tiny-icon">✦</span><h2 id="lesson-title">不知道怎么玩？从这里开始</h2></div>
         <p class="muted">四个小动作，学会布置你的第一张地图。</p>
@@ -48,6 +49,10 @@
       <div class="small-tip"><span>小提示</span>点错了？点击「撤销」或按 <kbd>Ctrl</kbd> + <kbd>Z</kbd>，就能回到上一步。</div>
     </aside>
     <section class="editor" aria-labelledby="editor-title">
+      <section class="search-controls" aria-label="寻路与动画控制">
+        <div class="control-row"><label for="algorithm">算法</label><select id="algorithm"><option value="astar">A* · 启发式搜索</option><option value="dijkstra">Dijkstra · 最低代价</option><option value="bfs">BFS · 最少步数</option></select><button id="search-button" class="button primary">开始搜索</button><button id="pause-search" class="button outline" disabled>暂停</button><button id="step-search" class="button outline" disabled>单步</button><button id="reset-search" class="button quiet">重置搜索</button></div>
+        <div class="control-row speed-row"><label for="search-speed">播放速度</label><input id="search-speed" type="range" min="1" max="300" value="30"><output id="speed-label" for="search-speed">30 节点/秒</output><span id="search-progress" role="status">等待搜索</span></div>
+      </section>
       <div class="editor-toolbar"><div class="tools" role="group" aria-label="地图编辑工具">
         <button class="tool active" data-mode="obstacle" aria-pressed="true"><svg><use href="#i-wall"/></svg>障碍物<kbd>1</kbd></button>
         <button class="tool" data-mode="start" aria-pressed="false"><svg><use href="#i-pin"/></svg>起点<kbd>2</kbd></button>
@@ -55,7 +60,7 @@
       </div><div class="edit-actions"><button id="undo-button" class="icon-button" title="撤销上一步（Ctrl+Z）" aria-label="撤销上一步" disabled><svg><use href="#i-undo"/></svg></button><span class="divider"></span><button id="clear-button" class="text-button">清除障碍</button></div></div>
       <div class="board-caption"><h2 id="editor-title">我的探索地图</h2><span id="dimensions-label">20 行 × 30 列</span></div>
       <div id="board-container" class="board-container"><canvas id="grid-canvas" tabindex="0" role="application" aria-label="机器人网格地图。数字键 1、2、3 切换工具，鼠标点击编辑。也可用方向键选择格子，空格键确认。"></canvas><div class="board-hint" id="board-hint">选择工具，然后在地图上点一下</div></div>
-      <div class="board-bottom"><div class="legend"><span><i class="empty"></i>空地</span><span><i class="obstacle"></i>障碍物</span><span><i class="start"></i>起点</span><span><i class="goal"></i>终点</span></div><span id="pointer-label" class="pointer-label">网格内点击编辑</span></div>
+      <div class="board-bottom"><div class="legend"><span><i class="empty"></i>未探索</span><span><i class="obstacle"></i>障碍物</span><span><i class="visited"></i>已探索</span><span><i class="path"></i>最终路径</span><span><i class="start"></i>起点</span><span><i class="goal"></i>终点</span></div><span id="pointer-label" class="pointer-label">网格内点击编辑</span></div>
       <div id="status" class="status" role="status" aria-live="polite"><span class="status-dot"></span><span id="status-text">先选「障碍物」，点击空地试试看。再点一次就能清除。</span></div>
     </section>
   </main>
