@@ -5,11 +5,13 @@
 
 当前主交付是**中文浏览器网站**：提供首次进入教程、四步动手练习、中文按钮、撤销与大屏模式。
 大屏模式铺满浏览器可用区域，不进入原生全屏，保留底部 Windows 任务栏。
-数字键或中文工具按钮选择模式，左键点击编辑地图；寻路和机器人移动属于后续阶段。
+数字键或中文工具按钮选择模式，左键点击编辑地图；网页寻路展示和机器人移动属于后续阶段。
 完整路线见 `PLAN.md`，协作约定见 `AGENTS.md`。
 
-Python 独立 BFS、Dijkstra 算法已实现，分别见 [BFS 说明](docs/bfs.md) 和 [Dijkstra 说明](docs/dijkstra.md)。
-两者使用统一的 `SearchResult`；Dijkstra 当前每步成本固定为 1。网站和桌面界面尚未接入搜索。
+Python 独立 BFS、Dijkstra、A* 算法已实现，分别见 [BFS 说明](docs/bfs.md)、
+[Dijkstra 说明](docs/dijkstra.md) 和 [A* 说明](docs/astar.md)。
+三者使用统一的 `SearchResult`，当前四方向移动、每步成本固定为 1；A* 使用曼哈顿距离。
+网站和桌面界面尚未接入搜索。
 
 ## 先打开网站，再跟着教程操作
 
@@ -144,7 +146,8 @@ python -X utf8 -B -m venv 'D:\codex\寻路\.venv'
 & 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -m pytest
 ```
 
-Python 当前共 168 项测试：原有 124 项模型/交互/绘制/网站服务测试，21 项 BFS 与 23 项 Dijkstra 测试。
+Python 当前共 197 项测试：原有 124 项模型/交互/绘制/网站服务测试，
+21 项 BFS、23 项 Dijkstra 与 29 项 A* 测试。
 模型和控制器通过禁用 `site-packages` 的子进程检查，确认不依赖 Pygame。
 事件循环测试使用 SDL dummy 驱动，不打开真实窗口；真实 Windows 窗口验证另记于 `PLAN.md`。
 pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供测试使用，运行时会清空。
@@ -162,6 +165,7 @@ node --test 'D:\codex\寻路\web\model.test.mjs'
 桌面原始 README 与远程初始说明内容一致，已收录到 [docs/desktop/README.md](docs/desktop/README.md)。
 
 - `src/robot_path_lab/grid.py`：独立网格数据模型和校验。
+- `src/robot_path_lab/algorithms`：统一搜索结果、地图快照，以及独立 BFS、Dijkstra、A* 算法。
 - `src/robot_path_lab/controller.py`：独立的编辑模式、合法性判断与操作反馈。
 - `src/robot_path_lab/ui/renderer.py`：格子、颜色、图例与标签绘制。
 - `src/robot_path_lab/ui/app.py`：示例地图组装及窗口事件循环。
