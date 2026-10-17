@@ -1,6 +1,7 @@
 """Grid state and validation, with no dependency on a graphical library."""
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from types import MappingProxyType
 
 Position = tuple[int, int]
 
@@ -21,6 +22,7 @@ class Grid:
         start: Position | None = None,
         goal: Position | None = None,
         obstacles: Iterable[Position] = (),
+        costs: Mapping[Position, int] | None = None,
     ) -> None:
         for name, value in (("rows", rows), ("cols", cols)):
             if type(value) is not int:
@@ -33,10 +35,13 @@ class Grid:
         self._start: Position | None = None
         self._goal: Position | None = None
         self._obstacles: set[Position] = set()
+        self._costs: dict[Position, int] = {}
         for position in obstacles:
             self.add_obstacle(position)
         self.set_start(start)
         self.set_goal(goal)
+        for position, cost in (costs or {}).items():
+            self.set_cost(position, cost)
 
     @property
     def rows(self) -> int:
@@ -57,6 +62,36 @@ class Grid:
     @property
     def obstacles(self) -> frozenset[Position]:
         return frozenset(self._obstacles)
+
+    @property
+    def costs(self) -> Mapping[Position, int]:
+        """Return a read-only copy of non-default entry costs."""
+        return MappingProxyType(self._costs.copy())
+
+    @property
+    def minimum_cost(self) -> int:
+        if len(self._costs) + len(self._obstacles) < self.rows * self.cols:
+            return 1
+        return min(self._costs.values(), default=1)
+
+    def set_cost(self, position: Position, cost: int) -> None:
+        self._require_in_bounds(position)
+        if type(cost) is not int:
+            raise TypeError("通行成本必须是正整数。")
+        if cost <= 0:
+            raise ValueError("通行成本必须是正整数。")
+        if position in self._obstacles:
+            raise ValueError("请先清除障碍，再设置地形成本。")
+        if cost == 1:
+            self._costs.pop(position, None)
+        else:
+            self._costs[position] = cost
+
+    def cost_at(self, position: Position) -> int:
+        self._require_in_bounds(position)
+        if position in self._obstacles:
+            raise ValueError("障碍物不可通行。")
+        return self._costs.get(position, 1)
 
     def in_bounds(self, position: Position) -> bool:
         """Return whether a well-formed coordinate lies inside the grid."""
@@ -90,6 +125,7 @@ class Grid:
         if position == self.start or position == self.goal:
             raise ValueError("An obstacle cannot occupy an endpoint.")
         self._obstacles.add(position)
+        self._costs.pop(position, None)
 
     def remove_obstacle(self, position: Position) -> None:
         self._require_in_bounds(position)

@@ -20,9 +20,13 @@ class SearchMeasurement:
     def path_length(self) -> int | None:
         return len(self.result.path) - 1 if self.result.found else None
 
+    @property
+    def total_cost(self) -> int | None:
+        return self.result.total_cost
+
 
 def _clone(grid: Grid) -> Grid:
-    return Grid(grid.rows, grid.cols, start=grid.start, goal=grid.goal, obstacles=grid.obstacles)
+    return Grid(grid.rows, grid.cols, start=grid.start, goal=grid.goal, obstacles=grid.obstacles, costs=grid.costs)
 
 
 def measure_search(

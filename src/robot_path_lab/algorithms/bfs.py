@@ -42,7 +42,8 @@ def _search(snapshot: GridSnapshot) -> Generator[Position, None, SearchResult]:
         visited.append(current)
         if current == snapshot.goal:
             yield current
-            return SearchResult(True, reconstruct_path(parents, snapshot.goal), tuple(visited))
+            path = reconstruct_path(parents, snapshot.goal)
+            return SearchResult(True, path, tuple(visited), sum(snapshot.cost_at(cell) for cell in path[1:]))
 
         for neighbor in snapshot.neighbors(current):
             if neighbor in parents:

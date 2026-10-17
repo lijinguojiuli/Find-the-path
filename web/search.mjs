@@ -41,11 +41,12 @@ function neighbors(grid, cell) {
   return [[0, -1], [1, 0], [0, 1], [-1, 0]].map(([dx, dy]) => [cell[0] + dx, cell[1] + dy])
     .filter(next => grid.inBounds(next) && !grid.isBlocked(next));
 }
-function result(found, parents, goal, visitedOrder) {
+function result(found, parents, grid, visitedOrder) {
   const path = [];
-  if (found) for (let current = key(goal); current !== null; current = parents.get(current)) path.push(position(current));
+  if (found) for (let current = key(grid.goal); current !== null; current = parents.get(current)) path.push(position(current));
   path.reverse();
-  return { found, path, visitedOrder, visitedCount: visitedOrder.length };
+  const totalCost = found ? path.slice(1).reduce((sum, cell) => sum + grid.costAt(cell), 0) : null;
+  return { found, path, visitedOrder, visitedCount: visitedOrder.length, totalCost };
 }
 export function searchGrid(grid, algorithm = 'astar') {
   if (!Object.hasOwn(ALGORITHMS, algorithm)) throw new Error('未知的寻路算法。');
@@ -57,28 +58,29 @@ function bfs(grid) {
   for (let index = 0; index < queue.length; index++) {
     const current = queue[index];
     visited.push(current);
-    if (key(current) === key(grid.goal)) return result(true, parents, grid.goal, visited);
+    if (key(current) === key(grid.goal)) return result(true, parents, grid, visited);
     for (const neighbor of neighbors(grid, current)) {
       if (parents.has(key(neighbor))) continue;
       parents.set(key(neighbor), key(current));
       queue.push(neighbor);
     }
   }
-  return result(false, parents, grid.goal, visited);
+  return result(false, parents, grid, visited);
 }
 function prioritySearch(grid, algorithm) {
   const heap = new MinHeap(), scores = new Map([[key(grid.start), 0]]);
   const parents = new Map([[key(grid.start), null]]), visited = [];
   let sequence = 0;
-  const estimate = cell => algorithm === 'astar' ? manhattan(cell, grid.goal) : 0;
+  const minimumCost = grid.minimumCost;
+  const estimate = cell => algorithm === 'astar' ? minimumCost * manhattan(cell, grid.goal) : 0;
   heap.push({ cell: grid.start, g: 0, h: estimate(grid.start), f: estimate(grid.start), order: sequence++ });
   while (heap.items.length) {
     const { cell: current, g } = heap.pop();
     if (g !== scores.get(key(current))) continue;
     visited.push(current);
-    if (key(current) === key(grid.goal)) return result(true, parents, grid.goal, visited);
+    if (key(current) === key(grid.goal)) return result(true, parents, grid, visited);
     for (const neighbor of neighbors(grid, current)) {
-      const candidate = g + 1;
+      const candidate = g + grid.costAt(neighbor);
       if (candidate >= (scores.get(key(neighbor)) ?? Infinity)) continue;
       scores.set(key(neighbor), candidate);
       parents.set(key(neighbor), key(current));
@@ -86,5 +88,5 @@ function prioritySearch(grid, algorithm) {
       heap.push({ cell: neighbor, g: candidate, h, f: candidate + h, order: sequence++ });
     }
   }
-  return result(false, parents, grid.goal, visited);
+  return result(false, parents, grid, visited);
 }

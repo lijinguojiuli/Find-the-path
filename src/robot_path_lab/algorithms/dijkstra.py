@@ -1,4 +1,4 @@
-"""Dijkstra search using a min-heap; every legal move currently costs one."""
+"""Dijkstra search using a min-heap and positive cell entry costs."""
 
 from collections.abc import Generator
 from heapq import heappop, heappush
@@ -44,11 +44,11 @@ def _search(snapshot: GridSnapshot) -> Generator[Position, None, SearchResult]:
         visited.append(current)
         if current == snapshot.goal:
             yield current
-            return SearchResult(True, reconstruct_path(parents, snapshot.goal), tuple(visited))
+            return SearchResult(True, reconstruct_path(parents, snapshot.goal), tuple(visited), distance)
 
         for neighbor in snapshot.neighbors(current):
             nx, ny = neighbor
-            candidate_distance = distance + 1
+            candidate_distance = distance + snapshot.cost_at(neighbor)
             if candidate_distance < distances[ny][nx]:
                 distances[ny][nx] = candidate_distance
                 parents[neighbor] = current

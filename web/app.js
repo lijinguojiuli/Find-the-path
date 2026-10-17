@@ -27,10 +27,10 @@ let measurements = [];
 function renderMetrics() {
   const selected = measurements.find(item => item.algorithm === $('algorithm').value);
   const duration = value => value < .001 ? '<0.001' : value.toFixed(3);
-  $('metric-summary').textContent = selected ? `${ALGORITHMS[selected.algorithm]} · ${selected.pathLength === null ? '不可达' : selected.pathLength + ' 步'} · 访问 ${selected.result.visitedCount} · ${duration(selected.elapsedMs)} 毫秒（仅算法）` : '搜索后显示步数、访问节点和算法耗时';
+  $('metric-summary').textContent = selected ? `${ALGORITHMS[selected.algorithm]} · ${selected.pathLength === null ? '不可达' : selected.pathLength + ' 步 · 成本 ' + selected.totalCost} · 访问 ${selected.result.visitedCount} · ${duration(selected.elapsedMs)} 毫秒（仅算法）` : '搜索后显示步数、总代价、访问节点和算法耗时';
   $('comparison-body').replaceChildren(...measurements.map(item => {
     const row = document.createElement('tr');
-    for (const value of [ALGORITHMS[item.algorithm], item.pathLength ?? '不可达', item.result.visitedCount, duration(item.elapsedMs)]) {
+    for (const value of [ALGORITHMS[item.algorithm], item.pathLength ?? '不可达', item.totalCost ?? '—', item.result.visitedCount, duration(item.elapsedMs)]) {
       const cell = document.createElement('td'); cell.textContent = value; row.append(cell);
     }
     return row;
@@ -38,6 +38,7 @@ function renderMetrics() {
 }
 
 function syncSearchControls() {
+  $('algorithm-note').textContent = $('algorithm').value === 'bfs' ? 'BFS 优化步数，不保证加权总代价最低。' : 'Dijkstra / A* 优化累计进入成本；普通地面 1，高成本地形 5。';
   $('search-button').disabled = searching;
   $('compare-button').disabled = searching;
   $('search-button').textContent = searching ? '计算中…' : '开始搜索';
@@ -79,7 +80,9 @@ function chooseMode(next, announce = true) {
   if (announce) {
     const tips = { obstacle: '障碍物工具：左键点击空地添加障碍，再点一次清除。',
       start: '起点工具：在一块新的空地上点一下，把绿色起点移过去。',
-      goal: '终点工具：在一块新的空地上点一下，把珊瑚色终点移过去。' };
+      goal: '终点工具：在一块新的空地上点一下，把珊瑚色终点移过去。',
+      terrain: '高成本工具：点击可通行格，进入该格的成本设为 5。',
+      plain: '普通地面工具：点击可通行格，将进入成本恢复为 1。' };
     setStatus(tips[mode]);
   }
   draw();
@@ -91,7 +94,7 @@ function saveUndo() {
 function syncInputs() { $('rows').value = grid.rows; $('cols').value = grid.cols; }
 function refresh() {
   $('dimensions-label').textContent = `${grid.rows} 行 × ${grid.cols} 列`;
-  $('map-summary').textContent = `已放置 ${grid.obstacleCount} 块障碍`;
+  $('map-summary').textContent = `${grid.obstacleCount} 块障碍 · ${grid.costs.size} 格高成本地形`;
   $('undo-button').disabled = history.length === 0;
   $('lesson-list').replaceChildren(...LESSON_STEPS.map((step, index) => {
     const item = document.createElement('li');
@@ -204,10 +207,15 @@ function draw() {
     for (let x = 0; x < grid.cols; x++) {
       const pixelX = left + x * size, pixelY = top + y * size;
       const cell = [x, y];
+      if (!obstacles.has(String(cell)) && grid.costAt(cell) > 1) roundedCell(pixelX, pixelY, size, '#e1d6b7');
       if (visited.has(String(cell))) roundedCell(pixelX, pixelY, size, '#b9d9ee');
       if (path.has(String(cell))) roundedCell(pixelX, pixelY, size, '#f4ca6e');
       if (obstacles.has(`${x},${y}`)) roundedCell(pixelX, pixelY, size, palette.obstacle);
       const start = equal(cell, grid.start), goal = equal(cell, grid.goal);
+      if (!start && !goal && !obstacles.has(String(cell)) && grid.costAt(cell) > 1 && size > 14) {
+        ctx.fillStyle = '#7f6438'; ctx.font = `600 ${Math.min(12, size * .45)}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(grid.costAt(cell)), pixelX + size / 2, pixelY + size / 2);
+      }
       if (start || goal) {
         if (start && goal) {
           ctx.fillStyle = palette.start;
@@ -281,7 +289,7 @@ $('algorithm').addEventListener('change', () => { invalidateSearch(); setStatus(
 $('clear-button').addEventListener('click', () => {
   if (!grid.obstacleCount) { setStatus('地图上已经没有障碍了。'); return; }
   saveUndo();
-  grid = new Grid(grid.rows, grid.cols, { start: grid.start, goal: grid.goal });
+  grid = new Grid(grid.rows, grid.cols, { start: grid.start, goal: grid.goal, costs: grid.snapshot().costs });
   restartLessonForMapChange();
   setStatus(lesson.active ? '障碍已清空，教程从放置第一块障碍重新开始。' : '已清除所有障碍，起点和终点保持原位。');
   refresh();
@@ -289,6 +297,10 @@ $('clear-button').addEventListener('click', () => {
 $('reset-button').addEventListener('click', () => {
   saveUndo(); grid = createDemoGrid(grid.rows, grid.cols); restartLessonForMapChange();
   setStatus('已恢复示例地图。想回到刚才的地图，可以点击撤销。'); refresh();
+});
+$('terrain-demo').addEventListener('click', () => {
+  saveUndo(); grid = new Grid(3, 5, { start: [0, 1], goal: [4, 1], costs: [[1, 1, 5], [2, 1, 5], [3, 1, 5]] });
+  restartLessonForMapChange(); syncInputs(); setStatus('成本示例已载入：直行 4 步成本 16，绕行 6 步成本 6。点击「对比三种算法」验证。'); refresh();
 });
 $('size-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -324,7 +336,7 @@ document.addEventListener('keydown', event => {
   if (typing || $('welcome-dialog').open) return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); undo(); return; }
   if (event.ctrlKey || event.metaKey || event.altKey) return;
-  const numberModes = { '1': MODES.obstacle, '2': MODES.start, '3': MODES.goal };
+  const numberModes = { '1': MODES.obstacle, '2': MODES.start, '3': MODES.goal, '4': MODES.terrain, '5': MODES.plain };
   if (numberModes[event.key]) chooseMode(numberModes[event.key]);
   if (event.key.toLowerCase() === 'h') { event.preventDefault(); openWelcome(); }
   if (event.key.toLowerCase() === 'f') { event.preventDefault(); toggleFullscreen(); }

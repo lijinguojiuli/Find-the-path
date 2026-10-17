@@ -1,4 +1,4 @@
-"""A* search on four-direction grids where every legal move costs one."""
+"""A* on four-direction grids using a cost-scaled Manhattan lower bound."""
 
 from collections.abc import Generator
 from heapq import heappop, heappush
@@ -36,7 +36,7 @@ def _search(snapshot: GridSnapshot) -> Generator[Position, None, SearchResult]:
     g_scores[sy][sx] = 0
     parents: dict[Position, Position | None] = {snapshot.start: None}
     sequence = count()
-    start_h = manhattan_distance(snapshot.start, snapshot.goal)
+    start_h = snapshot.minimum_cost * manhattan_distance(snapshot.start, snapshot.goal)
     # Heap entries: (f, h, insertion order, g, position). Lower h breaks f ties.
     frontier = [(0 + start_h, start_h, next(sequence), 0, snapshot.start)]
     visited: list[Position] = []
@@ -49,15 +49,15 @@ def _search(snapshot: GridSnapshot) -> Generator[Position, None, SearchResult]:
         visited.append(current)
         if current == snapshot.goal:
             yield current
-            return SearchResult(True, reconstruct_path(parents, snapshot.goal), tuple(visited))
+            return SearchResult(True, reconstruct_path(parents, snapshot.goal), tuple(visited), current_g)
 
         for neighbor in snapshot.neighbors(current):
             nx, ny = neighbor
-            candidate_g = current_g + 1  # Pay one when entering the neighbor.
+            candidate_g = current_g + snapshot.cost_at(neighbor)
             if candidate_g < g_scores[ny][nx]:
                 g_scores[ny][nx] = candidate_g
                 parents[neighbor] = current
-                h = manhattan_distance(neighbor, snapshot.goal)
+                h = snapshot.minimum_cost * manhattan_distance(neighbor, snapshot.goal)
                 f = candidate_g + h
                 heappush(frontier, (f, h, next(sequence), candidate_g, neighbor))
         yield current
