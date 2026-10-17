@@ -270,3 +270,18 @@ Python/网页跨语言对照检查六张地图中三种算法的完整结果，�
 浏览器另实际构造 1×3 阻断地图，显示不可达；起终点重合时显示 0 步、成本 0、访问 1。
 重复搜索、搜索重置、地形恢复、移动重置和到达停止均已通过实际界面操作确认。
 完整教程、模块职责、成本定义与测试命令见 docs/simulation.md。
+
+## 第 7–10 天发布记录
+
+- GitHub 源码已推送到 main（功能及教程提交至 1221458）。
+- 发布前逐一校验 10 个网页资源与发布工作区的哈希一致。
+- Sites 源码提交：6376ab710d5eafff849addc329bc6940f8b4a306。
+- 保存版本：appgprj_6ad37f2c031c81918c40ec913968dc8b~appgver_07d007bbad648191b6ddcf65075d09b3。
+- 部署：appgdep_6ad3a6733f548191bbe78806f09f8073，原生发布工具返回 succeeded。
+- 地址：https://robot-path-planning-lab.solarshore32.chatgpt.site ，访问范围仍为本人私有。
+- Windows 打包先遇到 Bash 不在 PATH，再遇到 tar 把盘符冒号视为远程地址。
+  仅为打包子进程加入本机 Git 的 bin/usr/bin 路径、项目内 TMPDIR 和 TAR_OPTIONS=--force-local 后成功。
+  未修改系统设置或插件源码，所有临时产物均位于项目 .tmp 内。
+- 首次发布请求遇到网络传输错误；查询版本确认未保存后重试相同包，发布成功。
+- 发布后线上浏览器复查连续超时，未声称线上交互验收通过。
+  相同资源的本地浏览器验收已完成，另检查宽窗口大屏布局并保存 .test_tmp/days7-10-preview.png。
