@@ -3,6 +3,7 @@ import { LESSON_STEPS, newLesson, advanceLesson } from './lesson.mjs';
 import { SearchPlayback } from './playback.mjs';
 import { ALGORITHMS } from './search.mjs';
 import { Robot } from './robot.mjs';
+import { calculateViewport } from './viewport.mjs';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -15,8 +16,11 @@ let hover = null;
 let focusCell = [0, 0];
 let geometry = { left: 0, top: 0, size: 1 };
 let immersive = false;
+let controlsWereOpen = true;
+let cellSize = 28;
 const history = [];
 const canvas = $('grid-canvas');
+const viewport = $('board-viewport');
 const ctx = canvas.getContext('2d');
 const palette = { empty: '#ffffff', obstacle: '#334a50', start: '#3aaf88', goal: '#e7806a' };
 const equal = (a, b) => a && b && a[0] === b[0] && a[1] === b[1];
@@ -160,6 +164,7 @@ function restartLessonForMapChange() {
   if (lesson.active) { lesson = newLesson(); chooseMode(MODES.obstacle, false); }
   hover = null;
   focusCell = [0, 0];
+  viewport.scrollTo(0, 0);
 }
 function undo() {
   const previous = history.pop();
@@ -197,27 +202,27 @@ function roundedCell(x, y, size, color) {
   ctx.fill();
 }
 function draw() {
-  const bounds = $('board-container').getBoundingClientRect();
-  if (!bounds.width || !bounds.height) return;
+  const width = viewport.clientWidth, height = viewport.clientHeight;
+  if (!width || !height) return;
+  geometry = calculateViewport({ rows: grid.rows, cols: grid.cols, width, height, cellSize, scrollLeft: viewport.scrollLeft, scrollTop: viewport.scrollTop });
+  const surface = $('board-container');
+  surface.style.width = `${geometry.contentWidth}px`;
+  surface.style.height = `${geometry.contentHeight}px`;
   const ratio = Math.min(window.devicePixelRatio || 1, 3);
-  canvas.width = Math.round(bounds.width * ratio);
-  canvas.height = Math.round(bounds.height * ratio);
+  canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
+  if (canvas.width !== Math.round(width * ratio)) canvas.width = Math.round(width * ratio);
+  if (canvas.height !== Math.round(height * ratio)) canvas.height = Math.round(height * ratio);
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  const width = bounds.width, height = bounds.height;
   ctx.fillStyle = '#fcfefd';
   ctx.fillRect(0, 0, width, height);
-  const size = Math.min((width - 50) / grid.cols, (height - 48) / grid.rows);
-  if (size <= 0) return;
-  const left = (width - grid.cols * size) / 2;
-  const top = (height - grid.rows * size) / 2 - 2;
-  geometry = { left, top, size };
+  const { left, top, size } = geometry;
   Object.assign(canvas.dataset, { rows: String(grid.rows), cols: String(grid.cols), left: String(left), top: String(top), cellSize: String(size) });
   ctx.fillStyle = palette.empty;
   ctx.fillRect(left, top, grid.cols * size, grid.rows * size);
   const obstacles = grid.obstacles;
   const visited = new Set(playback.visited.map(String)), path = new Set(playback.path.map(String));
-  for (let y = 0; y < grid.rows; y++) {
-    for (let x = 0; x < grid.cols; x++) {
+  for (let y = geometry.firstRow; y < geometry.lastRow; y++) {
+    for (let x = geometry.firstCol; x < geometry.lastCol; x++) {
       const pixelX = left + x * size, pixelY = top + y * size;
       const cell = [x, y];
       if (!obstacles.has(String(cell)) && grid.costAt(cell) > 1) roundedCell(pixelX, pixelY, size, '#e1d6b7');
@@ -273,13 +278,23 @@ function pointerCell(event) {
   const bounds = canvas.getBoundingClientRect();
   return cellFromPoint(event.clientX - bounds.left, event.clientY - bounds.top, geometry, grid.rows, grid.cols);
 }
-canvas.addEventListener('pointerdown', event => {
+function editAtPointer(event) {
   if (event.button !== 0) { setStatus('右键不会修改地图，请用左键点击。'); return; }
   canvas.focus({ preventScroll: true });
   const cell = pointerCell(event);
   if (cell) focusCell = [...cell];
   edit(cell);
+}
+let touchStart = null;
+canvas.addEventListener('pointerdown', event => {
+  if (event.pointerType === 'touch') { touchStart = [event.clientX, event.clientY]; return; }
+  editAtPointer(event);
 });
+canvas.addEventListener('pointerup', event => {
+  if (event.pointerType === 'touch' && touchStart && Math.hypot(event.clientX - touchStart[0], event.clientY - touchStart[1]) < 8) editAtPointer(event);
+  touchStart = null;
+});
+canvas.addEventListener('pointercancel', () => { touchStart = null; });
 canvas.addEventListener('pointermove', event => {
   hover = pointerCell(event);
   $('pointer-label').textContent = hover ? `第 ${hover[0] + 1} 列 · 第 ${hover[1] + 1} 行` : '网格内点击编辑';
@@ -290,6 +305,17 @@ canvas.addEventListener('contextmenu', event => event.preventDefault());
 canvas.addEventListener('focus', draw); canvas.addEventListener('blur', draw);
 for (const button of document.querySelectorAll('[data-mode]')) button.addEventListener('click', () => chooseMode(button.dataset.mode));
 $('undo-button').addEventListener('click', undo);
+$('cell-size').addEventListener('input', () => {
+  cellSize = Number($('cell-size').value); $('cell-size-label').textContent = `${cellSize} 像素/格`; draw();
+});
+$('reset-view').addEventListener('click', () => {
+  cellSize = 28; $('cell-size').value = '28'; $('cell-size-label').textContent = '28 像素/格'; viewport.scrollTo(0, 0); draw();
+});
+viewport.addEventListener('scroll', draw, { passive: true });
+$('control-panel').addEventListener('toggle', () => {
+  $('control-panel-hint').textContent = $('control-panel').open ? '收起控制，扩大地图' : '展开搜索、统计与移动';
+  requestAnimationFrame(draw);
+});
 function startSearch(compare = false) {
   playback.reset(); robot = null; searching = true; requestId++;
   searchWorker.postMessage({ id: requestId, version: mapVersion, map: grid.snapshot(), algorithm: $('algorithm').value, compare });
@@ -347,6 +373,8 @@ function fullscreenUI() {
 async function toggleFullscreen() {
   if (document.fullscreenElement) await document.exitFullscreen();
   immersive = !immersive;
+  if (immersive) { controlsWereOpen = $('control-panel').open; $('control-panel').open = false; }
+  else $('control-panel').open = controlsWereOpen;
   document.body.classList.toggle('focus-mode', immersive);
   setStatus(immersive
     ? '已进入大屏模式，保留底部系统任务栏。按 Esc 或「退出大屏」返回。'
@@ -369,11 +397,17 @@ document.addEventListener('keydown', event => {
     if (arrows[event.key]) {
       event.preventDefault(); const [dx, dy] = arrows[event.key];
       focusCell = [Math.max(0, Math.min(grid.cols - 1, focusCell[0] + dx)), Math.max(0, Math.min(grid.rows - 1, focusCell[1] + dy))]; draw();
+      const px = geometry.left + focusCell[0] * cellSize, py = geometry.top + focusCell[1] * cellSize;
+      if (px < 0) viewport.scrollLeft += px;
+      else if (px + cellSize > viewport.clientWidth) viewport.scrollLeft += px + cellSize - viewport.clientWidth;
+      if (py < 0) viewport.scrollTop += py;
+      else if (py + cellSize > viewport.clientHeight) viewport.scrollTop += py + cellSize - viewport.clientHeight;
+      draw();
     }
     if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); edit(focusCell); }
   }
 });
-new ResizeObserver(draw).observe($('board-container'));
+new ResizeObserver(draw).observe(viewport);
 function animate(timestamp) {
   const previous = playback.index;
   const beforeState = playback.state;

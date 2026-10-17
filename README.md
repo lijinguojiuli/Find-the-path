@@ -38,6 +38,9 @@ BFS 优化步数，Dijkstra/A* 优化累计成本；A* 使用最小进入成本�
 网页不需要安装 npm 依赖，使用原生 HTML/CSS/JavaScript；Python 标准库提供本地服务。
 
 操作顺序：选择算法 → 开始搜索 → 暂停/单步观察 → 路径显示完成 → 机器人出发。
+搜索与机器人控制默认收起，点击「寻路与机器人控制」展开。地图默认每格 28 像素，
+使用「格子大小」在 16–48 像素间调整；地图放不下时在地图内部滚动，不会自动缩成小点。
+「重置视图」恢复 28 像素与左上视角，不改变地图或搜索进度。大屏模式会收起控制区，保留系统任务栏。
 「对比三种算法」在同图显示步数、总代价、访问数和算法耗时；小屏对比表在地图下方。
 按 4 涂高成本，按 5 恢复普通地面；成本示例可验证 4 步/成本 16 与 6 步/成本 6 的区别。
 播放和移动分别调速、暂停与重置；修改地图会清除旧结果，需要重新搜索。
@@ -159,10 +162,10 @@ Python 当前共 246 项测试：原有 197 项，新增统计 6 项、地形 19
 pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供测试使用，运行时会清空。
 详见 [pytest 临时目录说明](https://docs.pytest.org/en/stable/how-to/tmp_path.html)。
 
-网页模型、搜索、播放、统计、地形和机器人提供 61 项 Node.js 原生测试：
+网页模型、搜索、播放、统计、地形、机器人和视图提供 68 项 Node.js 原生测试：
 
 ```powershell
-node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs
+node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs
 ```
 
 ## 结构与 Git

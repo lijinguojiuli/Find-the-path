@@ -12,7 +12,7 @@
 & 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -B -m robot_path_lab
 ```
 
-1. 选择 A*，把播放速度调慢，点击「开始搜索」。节点按访问顺序逐步变蓝，最后显示金色路径。
+1. 展开「寻路与机器人控制」，选择 A*，把播放速度调慢，点击「开始搜索」。节点按访问顺序逐步变蓝，最后显示金色路径。
 2. 点击「暂停」，记住访问数；等待后应保持不变。「单步」只推进一节点，仍保持暂停。
    点击「继续」恢复，调高播放速度后应更快显示完整路径。
 3. 点击「重置搜索」，搜索覆盖消失、地图保留。再次搜索应得到相同合法路线。
@@ -28,6 +28,8 @@
    将起点移到终点：搜索为 0 步、成本 0、访问 1，机器人显示已经到达。
 9. 切换标签页再返回，播放和移动会自动暂停，防止后台时间使画面突然跳到结尾。
 10. 大屏模式扩展浏览器可用区域，保留系统任务栏；Esc 或退出按钮恢复。
+    控制区会自动收起，可再次展开；地图每格默认 28 像素，支持缩放和内部滚动。
+    页面允许滚动，为地图保留足够高度；不会为了塞进一屏把 20×30 地图缩成几像素的格子。
 
 ## 模块职责
 
@@ -95,7 +97,7 @@ robot.reset()
 
 ```powershell
 & 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -B -m pytest -q
-node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs
+node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs
 ```
 
 加权正确性用已知答案与独立简单路径穷举验证，覆盖 128 种地形布局。
