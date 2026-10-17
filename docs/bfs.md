@@ -2,6 +2,8 @@
 
 ## 接口
 
+结果已统一为 `SearchResult`；原有 `BFSResult` 名称保留为兼容别名，字段与行为不变。
+
 ```python
 from robot_path_lab.algorithms import bfs
 from robot_path_lab.grid import Grid

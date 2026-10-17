@@ -8,8 +8,8 @@
 数字键或中文工具按钮选择模式，左键点击编辑地图；寻路和机器人移动属于后续阶段。
 完整路线见 `PLAN.md`，协作约定见 `AGENTS.md`。
 
-Python 独立 BFS 算法已实现，接口、小地图验证和最短路径原理见 [BFS 说明](docs/bfs.md)。
-本阶段只增加算法与测试，网站和桌面界面尚未接入 BFS。
+Python 独立 BFS、Dijkstra 算法已实现，分别见 [BFS 说明](docs/bfs.md) 和 [Dijkstra 说明](docs/dijkstra.md)。
+两者使用统一的 `SearchResult`；Dijkstra 当前每步成本固定为 1。网站和桌面界面尚未接入搜索。
 
 ## 先打开网站，再跟着教程操作
 
@@ -144,7 +144,7 @@ python -X utf8 -B -m venv 'D:\codex\寻路\.venv'
 & 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -m pytest
 ```
 
-Python 当前共 145 项测试：原有 124 项模型/交互/绘制/网站服务测试，加 21 项 BFS 测试。
+Python 当前共 168 项测试：原有 124 项模型/交互/绘制/网站服务测试，21 项 BFS 与 23 项 Dijkstra 测试。
 模型和控制器通过禁用 `site-packages` 的子进程检查，确认不依赖 Pygame。
 事件循环测试使用 SDL dummy 驱动，不打开真实窗口；真实 Windows 窗口验证另记于 `PLAN.md`。
 pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供测试使用，运行时会清空。
