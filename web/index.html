@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#087f73">
-  <meta name="description" content="中文机器人地图编辑实验台。四步动手教程，学习障碍与起终点编辑。支持保留系统任务栏的大屏模式。">
+  <meta name="description" content="中文机器人路径规划实验台：BFS、Dijkstra、A* 搜索动画、算法对比、地形成本与机器人移动。含上手教程与保留系统任务栏的大屏模式。">
   <title>寻路实验室 · 观察算法，走出路线</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='11' fill='%23087f73'/%3E%3Cpath d='M11 27V13h18v14H19' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./styles.css">
@@ -32,7 +32,8 @@
   <section class="page-heading"><div><div class="eyebrow">动手探索 · 路径规划</div><h1>画好地图，观察算法如何找到路<span>。</span></h1><p>选择算法，点击「开始搜索」。用暂停与单步，慢慢看懂每一步。</p></div><div class="ready"><span></span>实验台已就绪</div></section>
   <main class="layout">
     <aside class="sidebar">
-      <section class="card quick-guide"><h2>搜索怎么玩？</h2><ol><li>用工具设置地图、起点和终点。</li><li>选择算法，点击「开始搜索」。蓝色是访问过的节点，金色是最终路径。</li><li>点「暂停」后可单步观察；调节速度改变播放快慢。</li><li>「重置搜索」清除播放，再次搜索即可重来。修改地图也会清除旧结果。</li></ol><p>未探索的空地保持白色，起点和终点始终保留原色。</p></section>
+      <section class="card comparison-card"><h2>同一地图，公平比较</h2><details id="comparison-details"><summary>查看本次对比结果</summary><div class="table-scroll"><table><thead><tr><th>算法</th><th>步数</th><th>成本</th><th>访问数</th><th>耗时/ms</th></tr></thead><tbody id="comparison-body"></tbody></table></div><p>同一张地图、四方向移动。耗时不含动画、绘制与暂停；单次结果不能代表算法总是更快。</p></details></section>
+      <section class="card quick-guide"><h2>搜索和移动怎么玩？</h2><ol><li>用工具设置地图、起点和终点。</li><li>选择算法，点击「开始搜索」。蓝色是访问过的节点，金色是最终路径。</li><li>点「暂停」后可单步观察；调节速度改变播放快慢。</li><li>路径显示完成后，点击「机器人出发」。蓝色圆形机器人沿路径移动，到终点自动停下。</li><li>「暂停移动」后可继续；「重置移动」回到起点。「重置搜索」重新规划。修改地图会停止移动并清除旧结果。</li></ol><p>未探索的空地保持白色，起点和终点始终保留原色。搜索速度与移动速度分别调整，切到其他标签页时自动暂停。</p></section>
       <section class="card terrain-guide"><h2>走得短，不一定更划算</h2><p>普通地面成本 1，高成本地形成本 5。每进入一个格子支付它的成本，起点不收费。</p><p>按 4 涂高成本地形，按 5 恢复普通地面。BFS 优化步数；Dijkstra 和 A* 优化总代价。</p><button id="terrain-demo" class="button outline full-width">载入成本对比示例</button></section>
       <section class="card lesson-card" aria-labelledby="lesson-title">
         <div class="card-heading"><span class="tiny-icon">✦</span><h2 id="lesson-title">不知道怎么玩？从这里开始</h2></div>
@@ -55,7 +56,8 @@
         <div class="control-row speed-row"><label for="search-speed">播放速度</label><input id="search-speed" type="range" min="1" max="300" value="30"><output id="speed-label" for="search-speed">30 节点/秒</output><span id="search-progress" role="status">等待搜索</span></div>
         <p id="algorithm-note" class="algorithm-note"></p>
       </section>
-      <section class="metrics-panel" aria-label="算法性能统计"><div class="metrics-heading"><span id="metric-summary">搜索后显示步数、总代价、访问节点和算法耗时</span><button id="compare-button" class="button outline">对比三种算法</button></div><details id="comparison-details"><summary>查看本次对比结果</summary><div class="table-scroll"><table><thead><tr><th>算法</th><th>步数</th><th>总代价</th><th>访问节点</th><th>搜索耗时（毫秒）</th></tr></thead><tbody id="comparison-body"></tbody></table></div><p>同一张地图、四方向移动。耗时不含动画、绘制与暂停；单次结果不能代表算法总是更快。</p></details></section>
+      <section class="metrics-panel" aria-label="算法性能统计"><div class="metrics-heading"><span id="metric-summary">搜索后显示步数、总代价、访问节点和算法耗时</span><button id="compare-button" class="button outline">对比三种算法</button></div><p class="mobile-comparison-note">对比表在「同一地图，公平比较」卡片中，小屏请向下滚动查看。</p></section>
+      <section class="robot-controls" aria-label="机器人移动控制"><div class="control-row"><button id="robot-start" class="button primary" disabled>机器人出发</button><button id="robot-pause" class="button outline" disabled>暂停移动</button><button id="robot-reset" class="button quiet" disabled>重置移动</button><label for="robot-speed">移动速度</label><input id="robot-speed" type="range" min="1" max="10" value="3"><output id="robot-speed-label" for="robot-speed">3 格/秒</output></div><div id="robot-state" role="status">搜索播放完成后，机器人就能出发</div></section>
       <div class="editor-toolbar"><div class="tools" role="group" aria-label="地图编辑工具">
         <button class="tool active" data-mode="obstacle" aria-pressed="true"><svg><use href="#i-wall"/></svg>障碍物<kbd>1</kbd></button>
         <button class="tool" data-mode="start" aria-pressed="false"><svg><use href="#i-pin"/></svg>起点<kbd>2</kbd></button>
@@ -65,7 +67,7 @@
       </div><div class="edit-actions"><button id="undo-button" class="icon-button" title="撤销上一步（Ctrl+Z）" aria-label="撤销上一步" disabled><svg><use href="#i-undo"/></svg></button><span class="divider"></span><button id="clear-button" class="text-button">清除障碍</button></div></div>
       <div class="board-caption"><h2 id="editor-title">我的探索地图</h2><span id="dimensions-label">20 行 × 30 列</span></div>
       <div id="board-container" class="board-container"><canvas id="grid-canvas" tabindex="0" role="application" aria-label="机器人网格地图。数字键 1 障碍、2 起点、3 终点、4 高成本、5 普通地面，鼠标点击编辑。也可用方向键选择格子，空格键确认。"></canvas><div class="board-hint" id="board-hint">选择工具，然后在地图上点一下</div></div>
-      <div class="board-bottom"><div class="legend"><span><i class="empty"></i>未探索</span><span><i class="obstacle"></i>障碍物</span><span><i class="terrain"></i>高成本 5</span><span><i class="visited"></i>已探索</span><span><i class="path"></i>最终路径</span><span><i class="start"></i>起点</span><span><i class="goal"></i>终点</span></div><span id="pointer-label" class="pointer-label">网格内点击编辑</span></div>
+      <div class="board-bottom"><div class="legend"><span><i class="empty"></i>未探索</span><span><i class="obstacle"></i>障碍物</span><span><i class="terrain"></i>高成本 5</span><span><i class="visited"></i>已探索</span><span><i class="path"></i>最终路径</span><span><i class="start"></i>起点</span><span><i class="goal"></i>终点</span><span><i class="robot"></i>机器人</span></div><span id="pointer-label" class="pointer-label">网格内点击编辑</span></div>
       <div id="status" class="status" role="status" aria-live="polite"><span class="status-dot"></span><span id="status-text">先选「障碍物」，点击空地试试看。再点一次就能清除。</span></div>
     </section>
   </main>

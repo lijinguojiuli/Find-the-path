@@ -2,6 +2,7 @@ import { Grid, MODES, applyEdit, cellFromPoint, createDemoGrid, validDimensions 
 import { LESSON_STEPS, newLesson, advanceLesson } from './lesson.mjs';
 import { SearchPlayback } from './playback.mjs';
 import { ALGORITHMS } from './search.mjs';
+import { Robot } from './robot.mjs';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -23,6 +24,16 @@ const playback = new SearchPlayback();
 const searchWorker = new Worker(new URL('./search-worker.mjs', import.meta.url), { type: 'module' });
 let mapVersion = 0, requestId = 0, searching = false, lastFrame = null;
 let measurements = [];
+let robot = null;
+
+function syncRobotControls() {
+  const labels = { ready: '就绪', moving: '移动中', paused: '已暂停', arrived: '已到达终点', blocked: '路线受阻，停止移动' };
+  $('robot-start').disabled = !robot || !['ready', 'paused'].includes(robot.state);
+  $('robot-start').textContent = robot?.state === 'paused' ? '继续移动' : '机器人出发';
+  $('robot-pause').disabled = robot?.state !== 'moving';
+  $('robot-reset').disabled = !robot;
+  $('robot-state').textContent = robot ? `${labels[robot.state]} · 第 ${robot.position[0] + 1} 列、第 ${robot.position[1] + 1} 行 · 已移动 ${robot.index}/${robot.path.length - 1} 步` : '搜索播放完成后，机器人就能出发';
+}
 
 function renderMetrics() {
   const selected = measurements.find(item => item.algorithm === $('algorithm').value);
@@ -38,6 +49,8 @@ function renderMetrics() {
 }
 
 function syncSearchControls() {
+  if (playback.state === 'completed' && playback.result.found && !robot) robot = new Robot(grid, playback.result.path, Number($('robot-speed').value));
+  syncRobotControls();
   $('algorithm-note').textContent = $('algorithm').value === 'bfs' ? 'BFS 优化步数，不保证加权总代价最低。' : 'Dijkstra / A* 优化累计进入成本；普通地面 1，高成本地形 5。';
   $('search-button').disabled = searching;
   $('compare-button').disabled = searching;
@@ -50,7 +63,7 @@ function syncSearchControls() {
     ? `${labels[playback.state]} · ${playback.index}/${playback.result.visitedCount}` : labels.idle;
 }
 function invalidateSearch() {
-  mapVersion++; requestId++; searching = false; playback.reset(); measurements = []; renderMetrics(); syncSearchControls();
+  mapVersion++; requestId++; searching = false; playback.reset(); robot = null; measurements = []; renderMetrics(); syncSearchControls();
 }
 searchWorker.onmessage = ({ data }) => {
   if (data.id !== requestId || data.version !== mapVersion) return;
@@ -249,6 +262,12 @@ function draw() {
     ctx.strokeStyle = '#6d9ed1'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 2]);
     ctx.strokeRect(left + focusCell[0] * size + 1, top + focusCell[1] * size + 1, size - 2, size - 2); ctx.setLineDash([]);
   }
+  if (robot) {
+    const x = left + (robot.position[0] + .5) * size, y = top + (robot.position[1] + .5) * size;
+    ctx.beginPath(); ctx.arc(x, y, Math.max(1, size * .28), 0, Math.PI * 2);
+    ctx.fillStyle = '#285bb5'; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(.5, size * .05); ctx.stroke();
+    for (const offset of [-.09, .09]) { ctx.beginPath(); ctx.arc(x + size * offset, y - size * .03, Math.max(.5, size * .035), 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); }
+  }
 }
 function pointerCell(event) {
   const bounds = canvas.getBoundingClientRect();
@@ -272,7 +291,7 @@ canvas.addEventListener('focus', draw); canvas.addEventListener('blur', draw);
 for (const button of document.querySelectorAll('[data-mode]')) button.addEventListener('click', () => chooseMode(button.dataset.mode));
 $('undo-button').addEventListener('click', undo);
 function startSearch(compare = false) {
-  playback.reset(); searching = true; requestId++;
+  playback.reset(); robot = null; searching = true; requestId++;
   searchWorker.postMessage({ id: requestId, version: mapVersion, map: grid.snapshot(), algorithm: $('algorithm').value, compare });
   syncSearchControls(); draw();
 }
@@ -286,6 +305,10 @@ $('step-search').addEventListener('click', () => { playback.step(); syncSearchCo
 $('reset-search').addEventListener('click', () => { invalidateSearch(); setStatus('搜索已重置，地图保持原样。点击「开始搜索」重新播放。'); draw(); });
 $('search-speed').addEventListener('input', () => { playback.setRate(Number($('search-speed').value)); $('speed-label').textContent = `${playback.rate} 节点/秒`; });
 $('algorithm').addEventListener('change', () => { invalidateSearch(); setStatus('算法已切换。点击「开始搜索」查看新的访问顺序。'); draw(); });
+$('robot-start').addEventListener('click', () => { robot?.start(); lastFrame = null; syncRobotControls(); draw(); });
+$('robot-pause').addEventListener('click', () => { robot?.pause(); syncRobotControls(); });
+$('robot-reset').addEventListener('click', () => { robot?.reset(); syncRobotControls(); draw(); });
+$('robot-speed').addEventListener('input', () => { const speed = Number($('robot-speed').value); robot?.setSpeed(speed); $('robot-speed-label').textContent = `${speed} 格/秒`; });
 $('clear-button').addEventListener('click', () => {
   if (!grid.obstacleCount) { setStatus('地图上已经没有障碍了。'); return; }
   saveUndo();
@@ -354,12 +377,17 @@ new ResizeObserver(draw).observe($('board-container'));
 function animate(timestamp) {
   const previous = playback.index;
   const beforeState = playback.state;
-  if (lastFrame !== null) playback.update((timestamp - lastFrame) / 1000);
+  const robotIndex = robot?.index, robotState = robot?.state;
+  if (lastFrame !== null) {
+    const delta = (timestamp - lastFrame) / 1000;
+    playback.update(delta); robot?.update(delta);
+  }
   lastFrame = timestamp;
   if (previous !== playback.index || beforeState !== playback.state) { syncSearchControls(); draw(); }
+  if (robotIndex !== robot?.index || robotState !== robot?.state) { syncRobotControls(); draw(); }
   requestAnimationFrame(animate);
 }
-document.addEventListener('visibilitychange', () => { lastFrame = null; if (document.hidden) { playback.pause(); syncSearchControls(); } });
+document.addEventListener('visibilitychange', () => { lastFrame = null; if (document.hidden) { playback.pause(); robot?.pause(); syncSearchControls(); } });
 requestAnimationFrame(animate);
 syncInputs(); refresh(); fullscreenUI(); syncSearchControls(); renderMetrics();
 if (!hasSeenWelcome() || params.get('tutorial') === '1') openWelcome();
