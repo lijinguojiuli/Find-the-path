@@ -3,9 +3,40 @@
 使用 Python 和 Pygame 学习二维网格机器人路径规划，同时练习 Codex 的需求分析、
 代码修改、终端操作、测试、调试和 Git 交付流程。
 
-当前阶段：地图交互已实现。数字键选择编辑模式，左键点击设置障碍、起点或终点，
-界面显示当前模式与操作反馈。寻路和机器人移动属于后续阶段。
+当前主交付是**中文浏览器网站**：提供首次进入教程、四步动手练习、中文按钮、撤销与大屏模式。
+大屏模式铺满浏览器可用区域，不进入原生全屏，保留底部 Windows 任务栏。
+数字键或中文工具按钮选择模式，左键点击编辑地图；寻路和机器人移动属于后续阶段。
 完整路线见 `PLAN.md`，协作约定见 `AGENTS.md`。
+
+## 先打开网站，再跟着教程操作
+
+在线网站：[寻路实验室](https://robot-path-planning-lab.solarshore32.chatgpt.site)。
+当前为本人可访问的私有站点，首次访问可能需要登录对应的 ChatGPT 账号。
+
+```powershell
+& 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -m robot_path_lab
+```
+
+命令会启动本地网站并自动打开浏览器，默认地址为 `http://127.0.0.1:8765/`。
+保留运行命令的终端；关闭服务使用 Ctrl+C。端口被占用时可增加 `--port 8766`。
+
+1. 首次打开会出现中文介绍，点击「开始四步动手教程」。
+2. 在空格放一块障碍，再点同一格清除；教程会提示并自动切换下一步工具。
+3. 按提示在新的空地设置起点、终点，完成后进入自由编辑。
+4. 右上角「新手教程」随时可重新打开。左侧也保留教程和当前步骤。
+5. 点击「大屏模式」扩大地图，任务栏仍然保留；按 Esc、F 或「退出大屏」恢复。
+6. 如果需要整个浏览器窗口最大化，使用窗口右上角的最大化按钮，不使用 F11。
+
+点错了可以点撤销或按 Ctrl+Z。尺寸输入非法时显示中文错误并保留原地图。
+网页不需要安装 npm 依赖，使用原生 HTML/CSS/JavaScript；Python 标准库提供本地服务。
+
+## 保留的桌面原型
+
+原 Pygame 窗口可用 `--desktop` 启动，方便对照 Python 模型与事件处理：
+
+```powershell
+& 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -m robot_path_lab --desktop
+```
 
 ## 环境与依赖
 
@@ -58,9 +89,9 @@ python -X utf8 -B -m venv 'D:\codex\寻路\.venv'
 `-X utf8` 固定 Python 的文本编码。本机默认管道输出为 GBK，工具捕获日志时可能乱码；
 加入此选项后已验证中文命令帮助可正确输出，不需要修改系统编码。
 
-## 手动验收
+## 桌面原型手动验收（使用 --desktop）
 
-1. 运行默认启动命令，应出现标题为 `Robot Path Planning Lab - 20 x 30` 的窗口。
+1. 使用 `--desktop` 启动，应出现标题为 `Robot Path Planning Lab - 20 x 30` 的窗口。
 2. 顶部显示 `20 rows x 30 columns`；地图有 20 行、30 列，包含一段带缺口的示例障碍墙。
 3. 浅色为空地，深灰为障碍，左上角绿色 `S` 为起点，右下角红色 `G` 为终点。
 4. 先点击窗口取得焦点，再按下表逐项检查；顶部蓝色区域表示当前键盘模式，底部 `Status` 显示反馈。
@@ -110,11 +141,17 @@ python -X utf8 -B -m venv 'D:\codex\寻路\.venv'
 & 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -m pytest
 ```
 
-当前共 121 项测试：53 项模型、40 项控制器、25 项离屏绘制/坐标转换、3 项事件循环适配测试。
+Python 当前共 124 项测试：原有 121 项模型/交互/绘制测试，加 3 项网站服务测试。
 模型和控制器通过禁用 `site-packages` 的子进程检查，确认不依赖 Pygame。
 事件循环测试使用 SDL dummy 驱动，不打开真实窗口；真实 Windows 窗口验证另记于 `PLAN.md`。
 pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供测试使用，运行时会清空。
 详见 [pytest 临时目录说明](https://docs.pytest.org/en/stable/how-to/tmp_path.html)。
+
+网页模型、边界和教程状态还提供 28 项 Node.js 原生测试：
+
+```powershell
+node --test 'D:\codex\寻路\web\model.test.mjs'
+```
 
 ## 结构与 Git
 
@@ -126,6 +163,8 @@ pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供
 - `src/robot_path_lab/ui/renderer.py`：格子、颜色、图例与标签绘制。
 - `src/robot_path_lab/ui/app.py`：示例地图组装及窗口事件循环。
 - `src/robot_path_lab/__main__.py`：命令行尺寸参数与启动入口。
+- `src/robot_path_lab/web_server.py`：中文网站本地服务，仅提供 `web` 目录。
+- `web`：中文网站、交互式教程、布局与独立网页模型。
 - `tests`：模型、控制器、像素映射及事件适配测试。
 - `pyproject.toml`：构建、依赖、入口与 pytest 设置。
 - `PLAN.md`：阶段路线、验收标准和实际验证记录。

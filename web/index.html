@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#087f73">
+  <meta name="description" content="中文机器人地图编辑实验台。四步动手教程，学习障碍与起终点编辑。支持保留系统任务栏的大屏模式。">
+  <title>寻路实验室 · 从一张地图开始</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='11' fill='%23087f73'/%3E%3Cpath d='M11 27V13h18v14H19' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<svg class="svg-library" aria-hidden="true"><defs>
+  <symbol id="i-path" viewBox="0 0 24 24"><path d="M5 18V6h14v12h-8"/><circle cx="5" cy="18" r="2"/><circle cx="11" cy="18" r="2"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .5c0 2-2.5 2-2.5 4M12 17h.01"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="m9 5-5 5 5 5M4 10h10a6 6 0 0 1 0 12"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4m0 0c5-4 9 4 14 0v10c-5 4-9-4-14 0"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2"/></symbol>
+  <symbol id="i-wall" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 12h16M12 4v8m-4 0v8m8-8v8"/></symbol>
+  <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></symbol>
+</defs></svg>
+<div class="app-shell">
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="寻路实验室首页"><span class="brand-icon"><svg><use href="#i-path"/></svg></span><span>寻路实验室<small>让探索，从这里出发</small></span></a>
+    <span class="chapter"><span></span>地图编辑入门</span>
+    <div class="header-actions">
+      <button id="help-button" class="button quiet" aria-label="新手教程"><svg><use href="#i-help"/></svg><span>新手教程</span><kbd>H</kbd></button>
+      <button id="fullscreen-button" class="button fullscreen" title="铺满浏览器可用区域，保留底部系统任务栏"><svg><use href="#i-expand"/></svg><span id="fullscreen-label">大屏模式</span><kbd>F</kbd></button>
+    </div>
+  </header>
+  <section class="page-heading"><div><div class="eyebrow">动手探索 · 第一课</div><h1>先画好地图，再开启探索<span>。</span></h1><p>放置障碍，设置起终点。跟着教程，一分钟就能上手。</p></div><div class="ready"><span></span>地图已就绪</div></section>
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="card lesson-card" aria-labelledby="lesson-title">
+        <div class="card-heading"><span class="tiny-icon">✦</span><h2 id="lesson-title">不知道怎么玩？从这里开始</h2></div>
+        <p class="muted">四个小动作，学会布置你的第一张地图。</p>
+        <div class="lesson-progress"><span id="lesson-progress-bar"></span></div>
+        <ol class="lesson-list" id="lesson-list"></ol>
+        <div id="coach" class="coach" aria-live="polite">点击下方按钮，开始一次手把手的练习。</div>
+        <button id="lesson-button" class="button primary full-width">开始动手教程 <span aria-hidden="true">→</span></button>
+      </section>
+      <section class="card settings-card" aria-labelledby="settings-title">
+        <div class="card-heading"><h2 id="settings-title">这张地图，你来决定</h2></div>
+        <form id="size-form" novalidate><div class="size-fields"><label>行数<input id="rows" name="rows" type="number" min="1" max="80" value="20" inputmode="numeric"></label><span>×</span><label>列数<input id="cols" name="cols" type="number" min="1" max="80" value="30" inputmode="numeric"></label></div><div class="field-note">每项支持 1–80，应用后创建一张新地图。</div><p id="size-error" class="field-error" role="alert"></p><button class="button outline full-width" type="submit">应用地图尺寸</button></form>
+        <button id="reset-button" class="text-button"><svg><use href="#i-reset"/></svg>重置为当前尺寸的示例地图</button>
+      </section>
+      <div class="small-tip"><span>小提示</span>点错了？点击「撤销」或按 <kbd>Ctrl</kbd> + <kbd>Z</kbd>，就能回到上一步。</div>
+    </aside>
+    <section class="editor" aria-labelledby="editor-title">
+      <div class="editor-toolbar"><div class="tools" role="group" aria-label="地图编辑工具">
+        <button class="tool active" data-mode="obstacle" aria-pressed="true"><svg><use href="#i-wall"/></svg>障碍物<kbd>1</kbd></button>
+        <button class="tool" data-mode="start" aria-pressed="false"><svg><use href="#i-pin"/></svg>起点<kbd>2</kbd></button>
+        <button class="tool" data-mode="goal" aria-pressed="false"><svg><use href="#i-flag"/></svg>终点<kbd>3</kbd></button>
+      </div><div class="edit-actions"><button id="undo-button" class="icon-button" title="撤销上一步（Ctrl+Z）" aria-label="撤销上一步" disabled><svg><use href="#i-undo"/></svg></button><span class="divider"></span><button id="clear-button" class="text-button">清除障碍</button></div></div>
+      <div class="board-caption"><h2 id="editor-title">我的探索地图</h2><span id="dimensions-label">20 行 × 30 列</span></div>
+      <div id="board-container" class="board-container"><canvas id="grid-canvas" tabindex="0" role="application" aria-label="机器人网格地图。数字键 1、2、3 切换工具，鼠标点击编辑。也可用方向键选择格子，空格键确认。"></canvas><div class="board-hint" id="board-hint">选择工具，然后在地图上点一下</div></div>
+      <div class="board-bottom"><div class="legend"><span><i class="empty"></i>空地</span><span><i class="obstacle"></i>障碍物</span><span><i class="start"></i>起点</span><span><i class="goal"></i>终点</span></div><span id="pointer-label" class="pointer-label">网格内点击编辑</span></div>
+      <div id="status" class="status" role="status" aria-live="polite"><span class="status-dot"></span><span id="status-text">先选「障碍物」，点击空地试试看。再点一次就能清除。</span></div>
+    </section>
+  </main>
+  <footer class="page-footer"><span>每一次探索，都从一张地图开始。</span><span id="map-summary">已放置 9 块障碍</span></footer>
+</div>
+<dialog id="welcome-dialog" aria-labelledby="welcome-title"><button class="modal-close" id="welcome-close" aria-label="关闭教程介绍">×</button><div class="welcome-art" aria-hidden="true"><div class="art-grid"></div><span class="art-start">起</span><span class="art-wall one"></span><span class="art-wall two"></span><span class="art-goal">终</span><svg viewBox="0 0 240 100"><path d="M32 72H84V27H164V72H211"/></svg><span class="art-spark">✦</span></div><div class="modal-eyebrow">欢迎来到寻路实验室</div><h2 id="welcome-title">不用猜怎么玩，<br>我们一起做一遍。</h2><p>跟着四步小教程，学会添加障碍、清除障碍，再为机器人设置起点和终点。</p><div class="welcome-tags"><span>全中文操作</span><span>随时可撤销</span><span>大屏保留任务栏</span></div><button id="welcome-start" class="button primary full-width">开始四步动手教程 <span>→</span></button><button id="welcome-skip" class="text-button">我想先自己试试</button></dialog>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
