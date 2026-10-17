@@ -1,7 +1,8 @@
-"""Create a static preview and keep its Pygame window responsive."""
+"""Translate Pygame input into testable map editing actions."""
 
 import pygame
 
+from robot_path_lab.controller import EditController
 from robot_path_lab.grid import Grid
 from robot_path_lab.ui.renderer import FOOTER_HEIGHT, HEADER_HEIGHT, PADDING, GridRenderer
 
@@ -35,16 +36,28 @@ def run(grid: Grid) -> int:
         screen = pygame.display.set_mode(renderer.window_size(grid))
         pygame.display.set_caption(f"Robot Path Planning Lab - {grid.rows} x {grid.cols}")
         clock = pygame.time.Clock()
+        editor = EditController(grid)
+        mode_keys = {
+            pygame.K_1: "1", pygame.K_KP1: "1",
+            pygame.K_2: "2", pygame.K_KP2: "2",
+            pygame.K_3: "3", pygame.K_KP3: "3",
+        }
 
         running = True
         while running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
+                    break
                 elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     running = False
+                    break
+                elif event.type == pygame.KEYDOWN:
+                    editor.select_mode(mode_keys.get(event.key, ""))
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    editor.edit_cell(renderer.pixel_to_cell(grid, event.pos))
             if running:
-                renderer.draw(screen, grid)
+                renderer.draw(screen, grid, mode=editor.mode, status=editor.status)
                 pygame.display.flip()
                 clock.tick(60)
         return 0

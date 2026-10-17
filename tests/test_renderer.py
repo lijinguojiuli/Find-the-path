@@ -59,3 +59,43 @@ def test_overlapping_endpoints_show_both_colors() -> None:
     lower_right = surface.get_at((area.right - 4, area.bottom - 4))
     assert upper_left.g > upper_left.r
     assert lower_right.r > lower_right.g
+
+
+@pytest.mark.parametrize("cell_size", [8, 24])
+@pytest.mark.parametrize(
+    "pixel_case, expected",
+    [
+        ("top_left", (0, 0)),
+        ("last_inside", (4, 2)),
+        ("inner_line", (1, 0)),
+        ("before_inner_line", (0, 0)),
+        ("right_edge", None),
+        ("bottom_edge", None),
+        ("left_outside", None),
+        ("top_outside", None),
+        ("bottom_right", None),
+        ("header", None),
+        ("footer", None),
+    ],
+)
+def test_pixel_mapping_handles_all_edges_without_out_of_bounds_cells(
+    cell_size: int, pixel_case: str, expected,
+) -> None:
+    grid = Grid(3, 5)
+    renderer = GridRenderer(cell_size)
+    area = renderer.grid_rect(grid)
+    pixels = {
+        "top_left": area.topleft,
+        "last_inside": (area.right - 1, area.bottom - 1),
+        "inner_line": (area.left + cell_size, area.top),
+        "before_inner_line": (area.left + cell_size - 1, area.top),
+        "right_edge": (area.right, area.top),
+        "bottom_edge": (area.left, area.bottom),
+        "left_outside": (area.left - 1, area.top),
+        "top_outside": (area.left, area.top - 1),
+        "bottom_right": area.bottomright,
+        "header": (area.left, 20),
+        "footer": (area.left, area.bottom + 10),
+    }
+
+    assert renderer.pixel_to_cell(grid, pixels[pixel_case]) == expected
