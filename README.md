@@ -5,13 +5,15 @@
 
 当前主交付是**中文浏览器网站**：提供首次进入教程、四步动手练习、中文按钮、撤销与大屏模式。
 大屏模式铺满浏览器可用区域，不进入原生全屏，保留底部 Windows 任务栏。
-数字键或中文工具按钮选择模式，左键点击编辑地图；网页寻路展示和机器人移动属于后续阶段。
+数字键或中文工具按钮选择模式，左键点击编辑地图；支持三算法搜索动画、性能对比、地形成本和机器人移动。
 完整路线见 `PLAN.md`，协作约定见 `AGENTS.md`。
 
 Python 独立 BFS、Dijkstra、A* 算法已实现，分别见 [BFS 说明](docs/bfs.md)、
 [Dijkstra 说明](docs/dijkstra.md) 和 [A* 说明](docs/astar.md)。
-三者使用统一的 `SearchResult`，当前四方向移动、每步成本固定为 1；A* 使用曼哈顿距离。
-网站和桌面界面尚未接入搜索。
+三者使用统一的 `SearchResult`，四方向移动；普通地面成本 1、高成本地形 5，进入格子时计费，起点不收费。
+BFS 优化步数，Dijkstra/A* 优化累计成本；A* 使用最小进入成本乘曼哈顿距离。
+网页已接入搜索和移动；Pygame 保留原地图编辑原型。
+完整教程、原理与逐项验收见 [搜索与机器人实验说明](docs/simulation.md)。
 
 ## 先打开网站，再跟着教程操作
 
@@ -34,6 +36,11 @@ Python 独立 BFS、Dijkstra、A* 算法已实现，分别见 [BFS 说明](docs/
 
 点错了可以点撤销或按 Ctrl+Z。尺寸输入非法时显示中文错误并保留原地图。
 网页不需要安装 npm 依赖，使用原生 HTML/CSS/JavaScript；Python 标准库提供本地服务。
+
+操作顺序：选择算法 → 开始搜索 → 暂停/单步观察 → 路径显示完成 → 机器人出发。
+「对比三种算法」在同图显示步数、总代价、访问数和算法耗时；小屏对比表在地图下方。
+按 4 涂高成本，按 5 恢复普通地面；成本示例可验证 4 步/成本 16 与 6 步/成本 6 的区别。
+播放和移动分别调速、暂停与重置；修改地图会清除旧结果，需要重新搜索。
 
 ## 保留的桌面原型
 
@@ -146,17 +153,16 @@ python -X utf8 -B -m venv 'D:\codex\寻路\.venv'
 & 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -m pytest
 ```
 
-Python 当前共 197 项测试：原有 124 项模型/交互/绘制/网站服务测试，
-21 项 BFS、23 项 Dijkstra 与 29 项 A* 测试。
+Python 当前共 246 项测试：原有 197 项，新增统计 6 项、地形 19 项、机器人 23 项和跨语言对照 1 项。
 模型和控制器通过禁用 `site-packages` 的子进程检查，确认不依赖 Pygame。
 事件循环测试使用 SDL dummy 驱动，不打开真实窗口；真实 Windows 窗口验证另记于 `PLAN.md`。
 pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供测试使用，运行时会清空。
 详见 [pytest 临时目录说明](https://docs.pytest.org/en/stable/how-to/tmp_path.html)。
 
-网页模型、边界和教程状态还提供 28 项 Node.js 原生测试：
+网页模型、搜索、播放、统计、地形和机器人提供 61 项 Node.js 原生测试：
 
 ```powershell
-node --test 'D:\codex\寻路\web\model.test.mjs'
+node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs
 ```
 
 ## 结构与 Git
@@ -166,12 +172,14 @@ node --test 'D:\codex\寻路\web\model.test.mjs'
 
 - `src/robot_path_lab/grid.py`：独立网格数据模型和校验。
 - `src/robot_path_lab/algorithms`：统一搜索结果、地图快照，以及独立 BFS、Dijkstra、A* 算法。
+- `src/robot_path_lab/metrics.py`：高精度搜索计时与同图对比。
+- `src/robot_path_lab/robot.py`：独立于绘制帧率的机器人移动模型。
 - `src/robot_path_lab/controller.py`：独立的编辑模式、合法性判断与操作反馈。
 - `src/robot_path_lab/ui/renderer.py`：格子、颜色、图例与标签绘制。
 - `src/robot_path_lab/ui/app.py`：示例地图组装及窗口事件循环。
 - `src/robot_path_lab/__main__.py`：命令行尺寸参数与启动入口。
 - `src/robot_path_lab/web_server.py`：中文网站本地服务，仅提供 `web` 目录。
-- `web`：中文网站、交互式教程、布局与独立网页模型。
+- `web`：中文网站、教程、纯逻辑模块、搜索 Worker 与结果播放。
 - `tests`：模型、控制器、像素映射及事件适配测试。
 - `pyproject.toml`：构建、依赖、入口与 pytest 设置。
 - `PLAN.md`：阶段路线、验收标准和实际验证记录。

@@ -9,10 +9,16 @@
 - `test_bfs.py`：21 项 BFS 测试，覆盖已知最短路径、访问顺序、障碍、不可达、同起终点、快照及依赖隔离。
 - `test_dijkstra.py`：23 项 Dijkstra 测试；其中一项穷举 128 种障碍布局与 BFS 对照，另覆盖统一结果及旧 API 兼容。
 - `test_astar.py`：29 项 A* 测试，覆盖曼哈顿启发式、已知最短路、边界、误导分支及与 Dijkstra 的 128 种布局对照。
-- 合计 197 项 Python 测试。真实窗口及浏览器验收另记于 `PLAN.md`，不混计为 pytest 测试。
+- `test_metrics.py`：6 项统计测试，可控时钟验证独立计时窗口和重复测量。
+- `test_terrain.py`：19 项成本测试，含 128 种地形与独立路径穷举对照。
+- `test_robot.py`：23 项移动测试，覆盖时间分片、暂停、重置、到达、逐格障碍检查和非法路径。
+- `test_browser_parity.py`：1 项跨语言测试，对照六张地图的完整结果；无 Node 时明确跳过。
+- 合计 246 项 Python 测试。真实窗口及浏览器验收另记于 `PLAN.md`，不混计为 pytest 测试。
 - `web/model.test.mjs`：28 项独立网页逻辑测试，包括障碍、端点、像素边界、尺寸、快照和四步教程状态。
+- `web/search.test.mjs`：12 项搜索/播放测试；`metrics.test.mjs`：3 项计时测试。
+- `web/terrain.test.mjs`：12 项地形测试；`robot.test.mjs`：6 项移动测试。网页合计 61 项。
 
-网页测试命令：`node --test web/model.test.mjs`。它不依赖 npm 包。
+网页测试命令：`node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs`。不依赖 npm 包。
 
 从项目根目录使用项目虚拟环境运行：
 

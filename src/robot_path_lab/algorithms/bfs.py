@@ -1,4 +1,4 @@
-"""Four-direction breadth-first search for grids with equal step costs."""
+"""Minimize four-direction step count; terrain costs do not affect ordering."""
 
 from collections import deque
 from collections.abc import Generator

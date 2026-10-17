@@ -1,8 +1,11 @@
 # BFS 广度优先搜索
 
+当前网站已接入搜索播放与移动，支持地形成本，完整操作见 [第 7–10 天说明](simulation.md)。
+BFS 仍优化步数，新增 total_cost 报告其路线的实际成本，不保证加权总代价最低。
+
 ## 接口
 
-结果已统一为 `SearchResult`；原有 `BFSResult` 名称保留为兼容别名，字段与行为不变。
+结果已统一为 `SearchResult`；原有 `BFSResult` 名称保留为兼容别名，原有字段与行为保留。
 
 ```python
 from robot_path_lab.algorithms import bfs
