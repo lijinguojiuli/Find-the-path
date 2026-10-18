@@ -13,13 +13,15 @@
 - `test_terrain.py`：19 项成本测试，含 128 种地形与独立路径穷举对照。
 - `test_robot.py`：23 项移动测试，覆盖时间分片、暂停、重置、到达、逐格障碍检查和非法路径。
 - `test_browser_parity.py`：1 项跨语言测试，对照六张地图的完整结果；无 Node 时明确跳过。
-- 合计 246 项 Python 测试。真实窗口及浏览器验收另记于 `PLAN.md`，不混计为 pytest 测试。
+- `test_replanning.py`：19 项动态障碍测试，覆盖四类核心情况、当前位置保护、过期结果、暂停、加权成本与重置安全。
+- 合计 265 项 Python 测试。真实窗口及浏览器验收另记于 `PLAN.md`，不混计为 pytest 测试。
 - `web/model.test.mjs`：28 项独立网页逻辑测试，包括障碍、端点、像素边界、尺寸、快照和四步教程状态。
 - `web/search.test.mjs`：12 项搜索/播放测试；`metrics.test.mjs`：3 项计时测试。
 - `web/terrain.test.mjs`：12 项地形测试；`robot.test.mjs`：6 项移动测试。
-- `web/viewport.test.mjs`：7 项视图测试，覆盖固定格子尺寸、缩放与滚动定位、地图边界及搜索状态不变。网页合计 68 项。
+- `web/viewport.test.mjs`：7 项视图测试，覆盖固定格子尺寸、缩放与滚动定位、地图边界及搜索状态不变。
+- `web/replanning.test.mjs`：13 项重规划测试；`search-worker.test.mjs`：3 项 Worker 协议测试。网页合计 84 项。
 
-网页测试命令：`node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs`。不依赖 npm 包。
+网页测试命令：`node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs web/replanning.test.mjs web/search-worker.test.mjs`。不依赖 npm 包。
 
 从项目根目录使用项目虚拟环境运行：
 

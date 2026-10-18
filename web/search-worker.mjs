@@ -1,14 +1,16 @@
 import { Grid } from './model.mjs';
 import { measureSearch, compareAlgorithms } from './metrics.mjs';
 
-self.onmessage = ({ data }) => {
-  const { id, version, map, algorithm, compare = false } = data;
+export function executeSearchRequest(data) {
+  const { id, version, map, algorithm, compare = false, kind = 'search' } = data;
   try {
     const grid = new Grid(map.rows, map.cols, map);
-    const measurements = compare ? compareAlgorithms(grid) : [measureSearch(grid, algorithm)];
-    const selected = measurements.find(item => item.algorithm === algorithm);
-    self.postMessage({ id, version, result: selected.result, measurements });
+    const selectedAlgorithm = kind === 'replan' ? 'astar' : algorithm;
+    const measurements = compare && kind !== 'replan' ? compareAlgorithms(grid) : [measureSearch(grid, selectedAlgorithm)];
+    const selected = measurements.find(item => item.algorithm === selectedAlgorithm);
+    return { id, version, kind, result: selected.result, measurements };
   } catch (error) {
-    self.postMessage({ id, version, error: error.message });
+    return { id, version, kind, error: error.message };
   }
-};
+}
+if (typeof self !== 'undefined') self.onmessage = ({ data }) => self.postMessage(executeSearchRequest(data));

@@ -6,6 +6,7 @@
 当前主交付是**中文浏览器网站**：提供首次进入教程、四步动手练习、中文按钮、撤销与大屏模式。
 大屏模式铺满浏览器可用区域，不进入原生全屏，保留底部 Windows 任务栏。
 数字键或中文工具按钮选择模式，左键点击编辑地图；支持三算法搜索动画、性能对比、地形成本和机器人移动。
+支持移动中添加障碍，影响剩余路径时自动从当前位置用 A* 重新规划，无路时安全停止。
 完整路线见 `PLAN.md`，协作约定见 `AGENTS.md`。
 
 Python 独立 BFS、Dijkstra、A* 算法已实现，分别见 [BFS 说明](docs/bfs.md)、
@@ -43,7 +44,10 @@ BFS 优化步数，Dijkstra/A* 优化累计成本；A* 使用最小进入成本�
 「重置视图」恢复 28 像素与左上视角，不改变地图或搜索进度。大屏模式会收起控制区，保留系统任务栏。
 「对比三种算法」在同图显示步数、总代价、访问数和算法耗时；小屏对比表在地图下方。
 按 4 涂高成本，按 5 恢复普通地面；成本示例可验证 4 步/成本 16 与 6 步/成本 6 的区别。
-播放和移动分别调速、暂停与重置；修改地图会清除旧结果，需要重新搜索。
+播放和移动分别调速、暂停与重置；修改端点、地形或尺寸会清除旧结果，需要重新搜索。
+移动中的障碍编辑会保留当前位置：路径外不打断，路径被堵则自动重规划。蓝色机器人当前格禁止放障碍。
+点击「载入动态重规划示例」可练习；无路时清除障碍，再点「当前位置重规划」重试。
+完整规则与四类验收见 [动态重规划说明](docs/replanning.md)。
 
 ## 保留的桌面原型
 
@@ -156,16 +160,16 @@ python -X utf8 -B -m venv 'D:\codex\寻路\.venv'
 & 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -m pytest
 ```
 
-Python 当前共 246 项测试：原有 197 项，新增统计 6 项、地形 19 项、机器人 23 项和跨语言对照 1 项。
+Python 当前共 265 项测试：原有 246 项，以及 19 项动态障碍与重规划测试。
 模型和控制器通过禁用 `site-packages` 的子进程检查，确认不依赖 Pygame。
 事件循环测试使用 SDL dummy 驱动，不打开真实窗口；真实 Windows 窗口验证另记于 `PLAN.md`。
 pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供测试使用，运行时会清空。
 详见 [pytest 临时目录说明](https://docs.pytest.org/en/stable/how-to/tmp_path.html)。
 
-网页模型、搜索、播放、统计、地形、机器人和视图提供 68 项 Node.js 原生测试：
+网页模型、搜索、播放、统计、地形、机器人、视图与重规划提供 84 项 Node.js 原生测试：
 
 ```powershell
-node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs
+node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs web/replanning.test.mjs web/search-worker.test.mjs
 ```
 
 ## 结构与 Git
@@ -177,6 +181,7 @@ node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terr
 - `src/robot_path_lab/algorithms`：统一搜索结果、地图快照，以及独立 BFS、Dijkstra、A* 算法。
 - `src/robot_path_lab/metrics.py`：高精度搜索计时与同图对比。
 - `src/robot_path_lab/robot.py`：独立于绘制帧率的机器人移动模型。
+- `src/robot_path_lab/replanning.py`：动态障碍、从当前位置重跑 A*、过期结果校验与安全停止。
 - `src/robot_path_lab/controller.py`：独立的编辑模式、合法性判断与操作反馈。
 - `src/robot_path_lab/ui/renderer.py`：格子、颜色、图例与标签绘制。
 - `src/robot_path_lab/ui/app.py`：示例地图组装及窗口事件循环。

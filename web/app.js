@@ -4,6 +4,7 @@ import { SearchPlayback } from './playback.mjs';
 import { ALGORITHMS } from './search.mjs';
 import { Robot } from './robot.mjs';
 import { calculateViewport } from './viewport.mjs';
+import { DynamicPlanner } from './replanning.mjs';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -29,20 +30,22 @@ const searchWorker = new Worker(new URL('./search-worker.mjs', import.meta.url),
 let mapVersion = 0, requestId = 0, searching = false, lastFrame = null;
 let measurements = [];
 let robot = null;
+let planner = null;
 
 function syncRobotControls() {
-  const labels = { ready: '就绪', moving: '移动中', paused: '已暂停', arrived: '已到达终点', blocked: '路线受阻，停止移动' };
+  const labels = { ready: '就绪', moving: '移动中', paused: '已暂停', arrived: '已到达终点', blocked: '无可执行路线，已安全停止', replanning: '正在从当前位置重新规划' };
   $('robot-start').disabled = !robot || !['ready', 'paused'].includes(robot.state);
   $('robot-start').textContent = robot?.state === 'paused' ? '继续移动' : '机器人出发';
-  $('robot-pause').disabled = robot?.state !== 'moving';
-  $('robot-reset').disabled = !robot;
-  $('robot-state').textContent = robot ? `${labels[robot.state]} · 第 ${robot.position[0] + 1} 列、第 ${robot.position[1] + 1} 行 · 已移动 ${robot.index}/${robot.path.length - 1} 步` : '搜索播放完成后，机器人就能出发';
+  $('robot-pause').disabled = robot?.state !== 'moving' && !planner?.pending;
+  $('robot-reset').disabled = !robot || Boolean(planner?.pending);
+  $('replan-button').disabled = !robot || searching || robot.state === 'arrived';
+  $('robot-state').textContent = robot ? `${labels[robot.state]} · 第 ${robot.position[0] + 1} 列、第 ${robot.position[1] + 1} 行 · 本段已移动 ${robot.index}/${robot.path.length - 1} 步 · 重规划 ${planner?.replanCount || 0} 次` : '搜索播放完成后，机器人就能出发';
 }
 
 function renderMetrics() {
   const selected = measurements.find(item => item.algorithm === $('algorithm').value);
   const duration = value => value < .001 ? '<0.001' : value.toFixed(3);
-  $('metric-summary').textContent = selected ? `${ALGORITHMS[selected.algorithm]} · ${selected.pathLength === null ? '不可达' : selected.pathLength + ' 步 · 成本 ' + selected.totalCost} · 访问 ${selected.result.visitedCount} · ${duration(selected.elapsedMs)} 毫秒（仅算法）` : '搜索后显示步数、总代价、访问节点和算法耗时';
+  $('metric-summary').textContent = selected ? `${ALGORITHMS[selected.algorithm]}${selected.replanned ? ' 重规划（当前位置起算）' : ''} · ${selected.pathLength === null ? '不可达' : selected.pathLength + ' 步 · 成本 ' + selected.totalCost} · 访问 ${selected.result.visitedCount} · ${duration(selected.elapsedMs)} 毫秒（仅算法）` : '搜索后显示步数、总代价、访问节点和算法耗时';
   $('comparison-body').replaceChildren(...measurements.map(item => {
     const row = document.createElement('tr');
     for (const value of [ALGORITHMS[item.algorithm], item.pathLength ?? '不可达', item.totalCost ?? '—', item.result.visitedCount, duration(item.elapsedMs)]) {
@@ -53,7 +56,10 @@ function renderMetrics() {
 }
 
 function syncSearchControls() {
-  if (playback.state === 'completed' && playback.result.found && !robot) robot = new Robot(grid, playback.result.path, Number($('robot-speed').value));
+  if (playback.state === 'completed' && playback.result.found && !robot) {
+    robot = new Robot(grid, playback.result.path, Number($('robot-speed').value));
+    planner = new DynamicPlanner(robot);
+  }
   syncRobotControls();
   $('algorithm-note').textContent = $('algorithm').value === 'bfs' ? 'BFS 优化步数，不保证加权总代价最低。' : 'Dijkstra / A* 优化累计进入成本；普通地面 1，高成本地形 5。';
   $('search-button').disabled = searching;
@@ -63,15 +69,29 @@ function syncSearchControls() {
   $('pause-search').textContent = playback.state === 'paused' ? '继续' : '暂停';
   $('step-search').disabled = !playback.result || playback.state === 'completed';
   const labels = { idle: '等待搜索', playing: '播放中', paused: '已暂停', completed: playback.result?.found ? '路径已显示' : '目标不可达' };
-  $('search-progress').textContent = searching ? '正在计算搜索结果…' : playback.result
-    ? `${labels[playback.state]} · ${playback.index}/${playback.result.visitedCount}` : labels.idle;
+  $('search-progress').textContent = searching ? planner?.pending ? 'A* 正在重新规划…' : '正在计算搜索结果…' : playback.result
+    ? `${labels[playback.state]} · ${playback.index}/${playback.result.visitedCount}` : robot
+      ? robot.state === 'blocked' ? '旧路线已停止' : `路线保留 · 剩余 ${robot.remainingPath.length - 1} 步` : labels.idle;
 }
 function invalidateSearch() {
-  mapVersion++; requestId++; searching = false; playback.reset(); robot = null; measurements = []; renderMetrics(); syncSearchControls();
+  mapVersion++; requestId++; searching = false; playback.reset(); robot = null; planner = null; measurements = []; renderMetrics(); syncSearchControls();
 }
 searchWorker.onmessage = ({ data }) => {
   if (data.id !== requestId || data.version !== mapVersion) return;
   searching = false;
+  if (data.kind === 'replan') {
+    if (!planner?.pending) return;
+    if (data.error) { planner.fail(); setStatus(`重规划失败，机器人已安全停止：${data.error}`, true); syncSearchControls(); draw(); return; }
+    try {
+      if (!planner.finishReplan(planner.pending, data.result)) { setStatus('过期路线已丢弃，机器人保持停止。', true); syncSearchControls(); draw(); return; }
+    } catch (error) { setStatus(`新路线校验失败，机器人已停止：${error.message}`, true); syncSearchControls(); draw(); return; }
+    playback.load(data.result, false); playback.advance(data.result.visitedCount);
+    measurements = data.measurements.map(item => ({ ...item, replanned: true }));
+    $('algorithm').value = 'astar'; renderMetrics(); lastFrame = null;
+    setStatus(data.result.found ? `A* 重规划成功，已从当前位置更新路线，${robot.state === 'moving' ? '继续移动' : robot.state === 'paused' ? '保持暂停' : '等待出发'}。`
+      : 'A* 未找到可行路径：机器人已安全停止在原格。清除障碍后可点「当前位置重规划」。', !data.result.found);
+    syncSearchControls(); draw(); return;
+  }
   if (data.error) { setStatus(data.error, true); syncSearchControls(); return; }
   playback.load(data.result); lastFrame = null;
   measurements = data.measurements; renderMetrics();
@@ -79,7 +99,31 @@ searchWorker.onmessage = ({ data }) => {
   setStatus(data.result.found ? '计算完成，正在按访问顺序播放。可以暂停后单步观察。' : '目标不可达：正在播放已探索区域。', !data.result.found);
   syncSearchControls(); draw();
 };
-searchWorker.onerror = () => { searching = false; setStatus('搜索模块加载失败，请刷新页面重试。', true); syncSearchControls(); };
+searchWorker.onerror = () => { searching = false; if (planner?.pending) planner.fail(); setStatus('搜索模块加载失败，机器人已停止，请刷新页面重试。', true); syncSearchControls(); draw(); };
+
+function dispatchReplan(request) {
+  searching = true; requestId++; lastFrame = null;
+  playback.reset(); measurements = []; renderMetrics();
+  searchWorker.postMessage({ id: requestId, version: mapVersion, kind: 'replan', map: request.map, algorithm: 'astar' });
+  setStatus('剩余路径需要更新，机器人已暂停；A* 正在从当前位置重新规划。');
+  syncSearchControls(); draw();
+}
+
+function editRobotObstacle(cell) {
+  const before = grid.snapshot();
+  const blocked = !grid.isBlocked(cell);
+  let request;
+  try { request = planner.changeObstacle(cell, blocked); }
+  catch (error) { setStatus(error.message, true); return; }
+  history.push({ map: before, mode, lesson: { ...lesson, target: lesson.target && [...lesson.target] } });
+  if (history.length > 60) history.shift();
+  mapVersion++; requestId++; searching = false; playback.reset(); measurements = []; renderMetrics();
+  if (request) dispatchReplan(request);
+  else { setStatus(blocked ? '障碍已添加，没有影响剩余路径，机器人保持原状态。' : robot.state === 'blocked'
+    ? '障碍已清除，机器人仍留在原格。点击「当前位置重规划」寻找新路线。'
+    : '障碍已清除，机器人与当前路线保留。需要更优路线可点「当前位置重规划」。'); syncSearchControls(); }
+  refresh();
+}
 
 function setStatus(message, error = false) {
   $('status-text').textContent = message;
@@ -141,6 +185,7 @@ function refresh() {
   draw();
 }
 function edit(cell) {
+  if (robot && mode === MODES.obstacle && grid.inBounds(cell)) { editRobotObstacle(cell); return; }
   const before = grid.snapshot();
   const beforeLesson = { ...lesson, target: lesson.target && [...lesson.target] };
   const beforeMode = mode;
@@ -220,7 +265,7 @@ function draw() {
   ctx.fillStyle = palette.empty;
   ctx.fillRect(left, top, grid.cols * size, grid.rows * size);
   const obstacles = grid.obstacles;
-  const visited = new Set(playback.visited.map(String)), path = new Set(playback.path.map(String));
+  const visited = new Set(playback.visited.map(String)), path = new Set((robot ? robot.remainingPath : playback.path).map(String));
   for (let y = geometry.firstRow; y < geometry.lastRow; y++) {
     for (let x = geometry.firstCol; x < geometry.lastCol; x++) {
       const pixelX = left + x * size, pixelY = top + y * size;
@@ -317,7 +362,7 @@ $('control-panel').addEventListener('toggle', () => {
   requestAnimationFrame(draw);
 });
 function startSearch(compare = false) {
-  playback.reset(); robot = null; searching = true; requestId++;
+  playback.reset(); robot = null; planner = null; searching = true; requestId++;
   searchWorker.postMessage({ id: requestId, version: mapVersion, map: grid.snapshot(), algorithm: $('algorithm').value, compare });
   syncSearchControls(); draw();
 }
@@ -332,8 +377,13 @@ $('reset-search').addEventListener('click', () => { invalidateSearch(); setStatu
 $('search-speed').addEventListener('input', () => { playback.setRate(Number($('search-speed').value)); $('speed-label').textContent = `${playback.rate} 节点/秒`; });
 $('algorithm').addEventListener('change', () => { invalidateSearch(); setStatus('算法已切换。点击「开始搜索」查看新的访问顺序。'); draw(); });
 $('robot-start').addEventListener('click', () => { robot?.start(); lastFrame = null; syncRobotControls(); draw(); });
-$('robot-pause').addEventListener('click', () => { robot?.pause(); syncRobotControls(); });
-$('robot-reset').addEventListener('click', () => { robot?.reset(); syncRobotControls(); draw(); });
+$('robot-pause').addEventListener('click', () => { planner?.pause(); syncRobotControls(); });
+$('robot-reset').addEventListener('click', () => { robot?.reset(); if (robot?.state === 'blocked') setStatus('原路线已被新障碍阻断，机器人留在原格。请点「当前位置重规划」。', true); syncRobotControls(); draw(); });
+$('replan-button').addEventListener('click', () => {
+  if (!planner) return;
+  try { dispatchReplan(planner.requestReplan()); }
+  catch (error) { planner.fail(); setStatus(error.message, true); syncSearchControls(); draw(); }
+});
 $('robot-speed').addEventListener('input', () => { const speed = Number($('robot-speed').value); robot?.setSpeed(speed); $('robot-speed-label').textContent = `${speed} 格/秒`; });
 $('clear-button').addEventListener('click', () => {
   if (!grid.obstacleCount) { setStatus('地图上已经没有障碍了。'); return; }
@@ -350,6 +400,11 @@ $('reset-button').addEventListener('click', () => {
 $('terrain-demo').addEventListener('click', () => {
   saveUndo(); grid = new Grid(3, 5, { start: [0, 1], goal: [4, 1], costs: [[1, 1, 5], [2, 1, 5], [3, 1, 5]] });
   restartLessonForMapChange(); syncInputs(); setStatus('成本示例已载入：直行 4 步成本 16，绕行 6 步成本 6。点击「对比三种算法」验证。'); refresh();
+});
+$('dynamic-demo').addEventListener('click', () => {
+  saveUndo(); grid = new Grid(3, 15, { start: [0, 1], goal: [14, 1] });
+  restartLessonForMapChange(); syncInputs(); $('robot-speed').value = '1'; $('robot-speed-label').textContent = '1 格/秒';
+  setStatus('动态示例已载入，移动速度设为 1 格/秒。先搜索并出发，再向剩余的金色路径添加障碍，观察 A* 绕行。'); refresh();
 });
 $('size-form').addEventListener('submit', event => {
   event.preventDefault();
@@ -418,10 +473,10 @@ function animate(timestamp) {
   }
   lastFrame = timestamp;
   if (previous !== playback.index || beforeState !== playback.state) { syncSearchControls(); draw(); }
-  if (robotIndex !== robot?.index || robotState !== robot?.state) { syncRobotControls(); draw(); }
+  if (robotIndex !== robot?.index || robotState !== robot?.state) { syncSearchControls(); draw(); }
   requestAnimationFrame(animate);
 }
-document.addEventListener('visibilitychange', () => { lastFrame = null; if (document.hidden) { playback.pause(); robot?.pause(); syncSearchControls(); } });
+document.addEventListener('visibilitychange', () => { lastFrame = null; if (document.hidden) { playback.pause(); planner?.pause(); syncSearchControls(); } });
 requestAnimationFrame(animate);
 syncInputs(); refresh(); fullscreenUI(); syncSearchControls(); renderMetrics();
 if (!hasSeenWelcome() || params.get('tutorial') === '1') openWelcome();

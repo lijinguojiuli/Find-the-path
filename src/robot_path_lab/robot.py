@@ -9,17 +9,47 @@ from robot_path_lab.grid import Grid, Position
 class Robot:
     def __init__(self, grid: Grid, path: Iterable[Position], *, speed: float = 3) -> None:
         route = tuple(path)
-        if not route or route[0] != grid.start or route[-1] != grid.goal:
-            raise ValueError("路径必须从地图起点开始，在终点结束。")
+        self._validate_route(grid, route, grid.start)
+        self._grid = grid
+        self._path = route
+        self.speed = speed
+        self.reset()
+
+    @staticmethod
+    def _validate_route(grid: Grid, route: tuple[Position, ...], start: Position | None) -> None:
+        if not route or route[0] != start or route[-1] != grid.goal:
+            raise ValueError("路径必须从指定位置开始，在地图终点结束。")
         for index, cell in enumerate(route):
             if not grid.in_bounds(cell) or grid.is_blocked(cell):
                 raise ValueError("机器人路径不能越界或穿过障碍。")
             if index and sum(abs(a - b) for a, b in zip(cell, route[index - 1])) != 1:
                 raise ValueError("路径相邻节点必须上下左右相邻。")
-        self._grid = grid
+
+    @property
+    def grid(self) -> Grid:
+        return self._grid
+
+    @property
+    def remaining_path(self) -> tuple[Position, ...]:
+        return self.path[self._index:]
+
+    def replace_path(self, path: Iterable[Position]) -> None:
+        """Validate a fresh route from the current cell before replacing it."""
+        route = tuple(path)
+        self._validate_route(self.grid, route, self.position)
         self._path = route
-        self.speed = speed
         self.reset()
+
+    def stop(self) -> None:
+        """Discard the old route; start/reset cannot resurrect it."""
+        self._path = (self.position,)
+        self._index = 0
+        self._progress = 0.0
+        self._state = "blocked"
+
+    def begin_replanning(self) -> None:
+        self.stop()
+        self._state = "replanning"
 
     @property
     def path(self) -> tuple[Position, ...]:
@@ -48,9 +78,12 @@ class Robot:
         self._speed = value
 
     def reset(self) -> None:
+        if any(self.grid.is_blocked(cell) for cell in self.path):
+            self.stop()
+            return
         self._index = 0
         self._progress = 0.0
-        self._state = "arrived" if len(self.path) == 1 else "ready"
+        self._state = "ready" if len(self.path) > 1 else "arrived" if self.position == self.grid.goal else "blocked"
 
     def start(self) -> None:
         if self.state in {"ready", "paused"}:
