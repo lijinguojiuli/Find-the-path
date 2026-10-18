@@ -26,14 +26,17 @@ export class DynamicPlanner {
     if (!this.pending) this.resumeState = ['moving', 'paused'].includes(this.robot.state) ? this.robot.state : 'ready';
     const origin = this.robot.position;
     this.robot.beginReplanning();
-    const map = this.grid.snapshot(); map.start = [...origin];
-    // Freeze the request so outside code cannot change the in-flight map.
-    for (const cell of [...map.obstacles, ...map.costs]) Object.freeze(cell);
-    Object.freeze(map.obstacles); Object.freeze(map.costs); Object.freeze(map.start);
-    if (map.goal) Object.freeze(map.goal);
-    Object.freeze(map);
-    this.pending = Object.freeze({ token: ++this.sequence, version: this.version, map, fingerprint: fingerprint(this.grid) });
-    return this.pending;
+    try {
+      const map = this.grid.snapshot(); map.start = [...origin];
+      if (!map.goal) throw new Error('搜索前必须同时设置起点和终点。');
+      // Freeze the request so outside code cannot change the in-flight map.
+      for (const cell of [...map.obstacles, ...map.costs]) Object.freeze(cell);
+      Object.freeze(map.obstacles); Object.freeze(map.costs); Object.freeze(map.start);
+      if (map.goal) Object.freeze(map.goal);
+      Object.freeze(map);
+      this.pending = Object.freeze({ token: ++this.sequence, version: this.version, map, fingerprint: fingerprint(this.grid) });
+      return this.pending;
+    } catch (error) { this.fail(); throw error; }
   }
   pause() { if (this.pending) this.resumeState = 'paused'; this.robot.pause(); }
   fail() { this.pending = null; this.robot.stop(); }

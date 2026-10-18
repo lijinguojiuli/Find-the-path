@@ -198,3 +198,26 @@ def test_outside_map_is_rejected_without_changing_movement(position):
     with pytest.raises(ValueError):
         planner.add_obstacle(position)
     assert grid.obstacles == before and robot.state == "moving"
+
+
+@pytest.mark.parametrize("pending", [False, True], ids=["first-request", "replace-pending"])
+@pytest.mark.parametrize("entrypoint", ["request", "obstacle"])
+def test_invalid_replan_preparation_cleans_request_and_stops_safely(pending, entrypoint):
+    grid, robot, planner = moving_robot()
+    if pending:
+        planner.change_obstacle((3, 2))
+    origin, goal = robot.position, grid.goal
+    grid.set_goal(None)
+    with pytest.raises(ValueError, match="起点.*终点"):
+        if entrypoint == "request":
+            planner.request_replan()
+        else:
+            planner.add_obstacle((4, 2) if pending else (3, 2))
+    assert planner.pending is None
+    assert robot.state == "blocked" and robot.path == (origin,)
+    robot.start(); robot.update(100)
+    assert robot.position == origin
+    grid.set_goal(goal)
+    request = planner.request_replan()
+    assert planner.finish_replan(request, run_replan(request))
+    assert robot.state == "ready"

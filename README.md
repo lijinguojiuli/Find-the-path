@@ -160,16 +160,17 @@ python -X utf8 -B -m venv 'D:\codex\寻路\.venv'
 & 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -m pytest
 ```
 
-Python 当前共 265 项测试：原有 246 项，以及 19 项动态障碍与重规划测试。
+Python 当前共 742 项测试，包含固定种子随机地图、独立参考算法、动态重规划与异常状态回归。
+本轮范围、真实执行结果和未实现的保存加载缺口见 [测试审计报告](docs/test-audit.md)。
 模型和控制器通过禁用 `site-packages` 的子进程检查，确认不依赖 Pygame。
 事件循环测试使用 SDL dummy 驱动，不打开真实窗口；真实 Windows 窗口验证另记于 `PLAN.md`。
 pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供测试使用，运行时会清空。
 详见 [pytest 临时目录说明](https://docs.pytest.org/en/stable/how-to/tmp_path.html)。
 
-网页模型、搜索、播放、统计、地形、机器人、视图与重规划提供 84 项 Node.js 原生测试：
+网页模型、搜索、播放、统计、地形、机器人、视图与重规划提供 92 项 Node.js 原生测试：
 
 ```powershell
-node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs web/replanning.test.mjs web/search-worker.test.mjs
+node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs web/replanning.test.mjs web/search-worker.test.mjs web/audit.test.mjs
 ```
 
 ## 结构与 Git

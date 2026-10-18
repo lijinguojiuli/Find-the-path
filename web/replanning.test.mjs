@@ -98,3 +98,15 @@ test('重置不能把机器人送回后来被封住的重规划起点', () => {
   planner.addObstacle(origin); robot.reset();
   assert.deepEqual(robot.position,current); assert(!grid.isBlocked(robot.position)); assert.equal(robot.state,'blocked');
 });
+for (const pending of [false, true]) for (const entrypoint of ['request', 'obstacle']) {
+  test(`重规划准备异常必须清理状态：${entrypoint}, pending=${pending}`, () => {
+    const {grid,robot,planner}=setup();
+    if(pending)planner.changeObstacle([3,2]);
+    const origin=robot.position, goal=grid.goal; grid.setGoal(null);
+    assert.throws(()=>entrypoint==='request' ? planner.requestReplan() : planner.addObstacle(pending ? [4,2] : [3,2]),/起点.*终点/);
+    assert.equal(planner.pending,null); assert.equal(robot.state,'blocked'); assert.deepEqual(robot.path,[origin]);
+    robot.start();robot.update(100);assert.deepEqual(robot.position,origin);
+    grid.setGoal(goal);const request=planner.requestReplan();
+    assert(planner.finishReplan(request,runReplan(request)));assert.equal(robot.state,'ready');
+  });
+}

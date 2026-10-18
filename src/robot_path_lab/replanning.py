@@ -57,8 +57,12 @@ class DynamicPlanner:
             self._resume_state = self.robot.state if self.robot.state in {"moving", "paused"} else "ready"
         origin = self.robot.position
         self.robot.begin_replanning()  # Drop the unsafe route before doing any search work.
-        snapshot = capture_grid(Grid(self.grid.rows, self.grid.cols, start=origin, goal=self.grid.goal,
-                                     obstacles=self.grid.obstacles, costs=self.grid.costs))
+        try:
+            snapshot = capture_grid(Grid(self.grid.rows, self.grid.cols, start=origin, goal=self.grid.goal,
+                                         obstacles=self.grid.obstacles, costs=self.grid.costs))
+        except Exception:
+            self.fail()  # No request was created; do not leave a fake pending state.
+            raise
         self._sequence += 1
         self.pending = ReplanRequest(self._sequence, self.version, snapshot)
         return self.pending
