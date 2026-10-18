@@ -88,7 +88,7 @@ export class PairPlayback {
   finish() {this.advance(this.total-this.index);}
   update(seconds) {if(this.state!=='playing'||!Number.isFinite(seconds)||seconds<0)return;const value=seconds*this.rate+this.remainder;this.remainder=value-Math.floor(value);this.advance(Math.floor(value));}
 }
-export function stageHeight(viewportHeight,top,footerHeight) {
-  return Math.max(200,Math.min(850,Math.floor(viewportHeight-top-footerHeight-12)));
+export function stageHeight(viewportHeight,top,footerHeight,pageScroll=0) {
+  return Math.max(200,Math.min(850,Math.floor(viewportHeight-top-pageScroll-footerHeight-12)));
 }
 export function menuOffset(left,width,viewportWidth) {return Math.max(8,Math.min(left,viewportWidth-width-8))-left;}

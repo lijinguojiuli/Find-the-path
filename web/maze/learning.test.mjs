@@ -92,3 +92,19 @@ test('窄窗口的展开菜单始终留在可见范围内',()=>{
     const offset=menuOffset(left,width,viewport);assert.ok(left+offset>=8);assert.ok(left+offset+width<=viewport-8);
   }
 });
+test('回归：页面滚动后地图高度保持稳定，不挤走播放按钮',()=>{
+  assert.equal(stageHeight(720,200,150),358);
+  assert.equal(stageHeight(720,138,150,62),358);
+  assert.equal(stageHeight(720,-80,150,280),358);
+});
+test('节点索引在长访问记录、暂停回退和切换算法后仍返回各自数据',()=>{
+  const m=generateMaze({rows:101,cols:101,type:'braided',seed:42}),first=searchMaze(m,'bfs'),second=searchMaze(m,'dfs');
+  const id=first.visitedOrder.at(-1),index=first.visitedCount-1;
+  assert.ok(index>512);
+  assert.equal(inspectNode(m,first,id,first.visitedCount).index,index);
+  assert.equal(inspectNode(m,first,id,0).pending,true);
+  const j=second.visitedOrder.indexOf(id),detail=inspectNode(m,second,id,second.visitedCount);
+  if(j>=0){assert.equal(detail.index,j);assert.equal(detail.g,second.visitedG[j]);}
+  else assert.ok(detail.pathOnly||detail.pending);
+  assert.equal(inspectNode(m,first,id,first.visitedCount).g,first.visitedG[index]);
+});

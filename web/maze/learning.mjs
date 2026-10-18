@@ -1,4 +1,5 @@
 import { nodeScores,STRATEGIES } from './trace.mjs';
+const visitIndices=new WeakMap();
 export function edgeKey(a,b) {return Math.min(a,b)*2+(Math.abs(a-b)===1?0:1);}
 export function pathOverlap(left,right,size) {
   const edges=new Uint8Array(size*2);let shared=0,leftOnly=0,rightOnly=0;
@@ -10,7 +11,15 @@ export function pathOverlap(left,right,size) {
 }
 export function inspectNode(maze,result,id,visibleCount) {
   if(!result||!Number.isInteger(id)||id<0||id>=maze.walls.length)return null;
-  const index=result.visitedOrder.indexOf(id),algorithm=result.algorithm??'astar';
+  // A selected late node on a million-cell map must not trigger a linear scan
+  // on every animation frame. The immutable result owns a disposable lookup.
+  let lookup=visitIndices.get(result);
+  if(!lookup||lookup.order!==result.visitedOrder||lookup.indices.length!==maze.walls.length){
+    const indices=new Int32Array(maze.walls.length).fill(-1);
+    for(let i=0;i<result.visitedOrder.length;i++)indices[result.visitedOrder[i]]=i;
+    lookup={order:result.visitedOrder,indices};visitIndices.set(result,lookup);
+  }
+  const index=lookup.indices[id],algorithm=result.algorithm??'astar';
   if(maze.walls[id])return {id,wall:true,message:'这是墙体，算法不能进入。'};
   if(index<0&&visibleCount>=result.visitedCount&&result.found&&result.path.includes(id))return {id,pathOnly:true,message:'此格在最终路径上，但未被单独扩展。双向连接后即可回溯路径，不能据此提供扩展时的评分或队列快照。'};
   if(index<0||index>=visibleCount)return {id,pending:true,message:'此格尚未在当前播放进度中展开。单步后再观察。'};

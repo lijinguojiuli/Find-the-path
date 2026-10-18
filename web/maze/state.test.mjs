@@ -82,3 +82,13 @@ test('两算法对比只返回选择的两种轨迹，仍使用同一版本地�
   assert.deepEqual(values.map(m=>m.algorithm),['dfs','astar']); assert.ok(values.every(m=>m.result && m.version===9));
   assert.ok(values[0].summary.pathLength > values[1].summary.pathLength);
 });
+test('回归：普通搜索立即返回单次结果，对比实验仍采样五次',()=>{
+  const map=generateMaze({rows:15,cols:25,version:6}),out=[];let ticks=0;
+  executeRequest({id:11,version:6,kind:'search',map,algorithm:'astar'},m=>out.push(m),()=>++ticks);
+  assert.equal(ticks,2,'普通搜索只测量一次，不等待热身与多次采样');
+  assert.equal(out.length,1);const {result,summary}=out[0];assert.equal(out[0].kind,'result');
+  assert.equal(summary.sampleCount,1);assert.equal(summary.warmupCount,0);assert.equal(summary.timingKind,'single');
+  assert.equal(summary.includesDetails,true);assert.ok(result.teachingFrames.length);assert.equal(summary.totalCost,result.path.length-1);
+  const pair=[];executeRequest({id:12,version:6,kind:'pair',map,algorithm:'astar',reference:'bfs'},m=>pair.push(m));
+  for(const item of pair.filter(m=>m.kind==='measurement')){assert.equal(item.summary.sampleCount,5);assert.equal(item.summary.warmupCount,1);assert.equal(item.summary.timingKind,'median');assert.equal(item.summary.includesDetails,false);}
+});

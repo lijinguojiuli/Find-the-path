@@ -20,8 +20,8 @@ BFS 优化步数，Dijkstra/A* 优化累计成本；A* 使用最小进入成本�
 十种随机迷宫、14 种搜索算法；默认 15×25 不规则散墙完整展示，大地图最高 1001×1001。
 从原实验台顶部「迷宫演示」进入；提供五个教学场景、双图同步播放、共同路段高亮和节点 g/h/f 讲解。
 点击「迷宫风格」查看十种地图缩略图，用「换一张」保持风格随机重生成。
-推荐地图自动适配视图；字体与按钮放大，光效可调强度并自动降级。计时热身后采样 5 次取中位数。
-详见 [迷宫教程与验收](docs/maze.md)、[地图风格说明](docs/maze-styles.md) 和 [算法对比优化验收](docs/maze-optimization.md)。
+地图优先显示，播放控制在地图下方，节点讲解在侧栏或地图之后。墙格实心填充，绘制复用缓存，普通搜索运行一次即播放；对比实验才热身后采样 5 次取中位数。
+详见 [迷宫教程与验收](docs/maze.md)、[地图风格说明](docs/maze-styles.md)、[布局与响应优化](docs/maze-layout-response.md) 和 [算法对比优化验收](docs/maze-optimization.md)。
 
 ## 先打开网站，再跟着教程操作
 
@@ -167,14 +167,14 @@ python -X utf8 -B -m venv 'D:\codex\寻路\.venv'
 & 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -m pytest
 ```
 
-Python 当前共 1045 项测试，包含固定种子随机地图、独立参考算法、动态重规划与独立迷宫模块。
+Python 当前共 1047 项测试，包含固定种子随机地图、独立参考算法、动态重规划与独立迷宫模块。
 此前审计范围和未实现的保存加载缺口见 [测试审计报告](docs/test-audit.md)；新增迷宫验证见 [迷宫验收](docs/maze.md)。
 模型和控制器通过禁用 `site-packages` 的子进程检查，确认不依赖 Pygame。
 事件循环测试使用 SDL dummy 驱动，不打开真实窗口；真实 Windows 窗口验证另记于 `PLAN.md`。
 pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供测试使用，运行时会清空。
 详见 [pytest 临时目录说明](https://docs.pytest.org/en/stable/how-to/tmp_path.html)。
 
-网页模型、搜索、播放、统计、地形、机器人、视图、重规划与迷宫提供 381 项 Node.js 原生测试：
+网页模型、搜索、播放、统计、地形、机器人、视图、重规划与迷宫提供 385 项 Node.js 原生测试：
 
 ```powershell
 node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs web/replanning.test.mjs web/search-worker.test.mjs web/audit.test.mjs

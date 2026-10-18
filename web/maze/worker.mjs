@@ -10,7 +10,7 @@ export function measure(maze, algorithm, now = () => performance.now(),options={
   return { result, summary: { algorithm, found: result.found, pathLength: result.found ? result.path.length - 1 : null,
     totalCost: result.totalCost, visitedCount: result.visitedCount, elapsedMs, status: result.status, reason: result.reason,
     expansionCount:result.expansionCount,repeatExpansionCount:result.repeatExpansionCount,maxFrontierSize:result.maxFrontierSize,
-    edgeScans:result.edgeScans,workCount:result.workCount,sampleCount:1,warmupCount:0,timingKind:'single' } };
+    edgeScans:result.edgeScans,workCount:result.workCount,sampleCount:1,warmupCount:0,timingKind:'single',includesDetails:options.captureDetails!==false } };
 }
 export function timingSummary(values) {
   if(!values.length||values.some(v=>!Number.isFinite(v)||v<0))throw new Error('计时样本无效。');
@@ -25,7 +25,7 @@ export function benchmark(maze,algorithm,{now=()=>performance.now(),samples=5,wa
   for(let i=0;i<samples;i++){onSample(i+1,samples);measured=measure(maze,algorithm,now,{captureDetails:false});times.push(measured.summary.elapsedMs);}
   // Teaching snapshots are collected separately, outside all timing samples.
   const detailed=iterSearch(maze,algorithm);let step;do{step=detailed.next();}while(!step.done);
-  return {result:step.value,summary:{...measured.summary,...timingSummary(times),sampleCount:samples,warmupCount:warmups,timingKind:'median'}};
+  return {result:step.value,summary:{...measured.summary,...timingSummary(times),sampleCount:samples,warmupCount:warmups,timingKind:'median',includesDetails:false}};
 }
 export function executeRequest(data, send, now = () => performance.now()) {
   const { id, version, kind } = data;
@@ -55,7 +55,9 @@ export function executeRequest(data, send, now = () => performance.now()) {
       emit({kind:'study-done'});return;
     }
     if (kind === 'search') {
-      const { result, summary } = run(data.algorithm);
+      // Exploration is a single detailed search. Repeat timing belongs to the
+      // explicit comparison experiments, so first playback never waits for it.
+      const { result, summary } = measure(maze,data.algorithm,now);
       emit({ kind: 'result', algorithm: data.algorithm, result, summary });
     } else {
       const algorithms = kind === 'pair' ? [...new Set([data.algorithm, data.reference ?? 'bfs'])] : Object.keys(ALGORITHMS);

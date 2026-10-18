@@ -51,3 +51,16 @@ test('散墙预览与缩小主图使用相同的浅色墙体，仍以实际墙�
     const p={index:0,state:'idle',result:null};drawMaze(canvas,maze,p,{size:1,left:0,top:0},{width:100,height:100,effects:false});assert.deepEqual(canvas.context.image.context.pixels.slice(4,8),[223,234,231,255]);
   }finally{globalThis.document=oldDocument;globalThis.devicePixelRatio=oldRatio;}
 });
+test('回归：放大后的散墙每个墙格全部实心填色，重复绘制复用栅格',()=>{
+  const oldDocument=globalThis.document,oldRatio=globalThis.devicePixelRatio;let uploads=0;
+  globalThis.document={createElement:()=>{const c=fakeCanvas(),put=c.context.putImageData;c.context.putImageData=function(image){uploads++;put.call(this,image);};return c;}};globalThis.devicePixelRatio=1;
+  try{
+    const canvas=fakeCanvas(),maze={rows:2,cols:3,type:'scatter',walls:new Uint8Array([0,1,1,0,1,0]),startId:0,goalId:5};
+    const p={index:0,state:'idle',result:null,mask:new Uint8Array(6),pathMask:new Uint8Array(6)},g={size:28,left:0,top:0,firstRow:0,lastRow:2,firstCol:0,lastCol:3};
+    drawMaze(canvas,maze,p,g,{width:200,height:160,effects:false});
+    assert.ok(canvas.context.image,'所有缩放级别都应绘制完整实心格子');
+    for(const id of [1,2,4])assert.deepEqual(canvas.context.image.context.pixels.slice(id*4,id*4+4),[223,234,231,255]);
+    assert.deepEqual(canvas.context.image.context.pixels.slice(12,16),[16,30,45,255]);
+    drawMaze(canvas,maze,p,g,{width:200,height:160,effects:false});assert.equal(uploads,1,'没有新探索时不重复上传地图');
+  }finally{globalThis.document=oldDocument;globalThis.devicePixelRatio=oldRatio;}
+});

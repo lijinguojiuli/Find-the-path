@@ -8,11 +8,12 @@ import { calculateViewport } from '../viewport.mjs';
 import { drawMaze,drawComparison } from './renderer.mjs';
 
 const $=id=>document.getElementById(id),tasks=new Tasks(),cache=new ResultCache(),quality=new EffectsPolicy();
-const catalogTasks=new Tasks();let catalogWorker=null;
+const catalogTasks=new Tasks();let catalogWorker=null,catalogSeed=null;
 const viewport=$('viewport'),canvas=$('maze-canvas'),mini=$('minimap'),miniCtx=mini.getContext('2d');
 let maze=null,worker=null,playback=null,pairPlayback=null,overlap=null,version=0,scene='custom';
 let dirty=true,comparisonDirty=true,layoutDirty=true,lastTime=null,lastPaint=0,lastMiniTime=0,geometry=null;
 let miniBase=null,miniPixels=null,miniIndex=0,miniFinished=false,fit=true,comparing=false,inspectorId=null,studyRows=[];
+let lastInspection=null,lastInspectionPaint=0;
 const selected=()=>$('algorithm').value,reference=()=>$('reference').value,active=()=>comparing?pairPlayback:playback;
 const rate=()=>Math.round(10**Number($('speed').value));
 const intensity=()=>quality.intensity($('effects').checked,Number($('effect-level').value));
@@ -45,20 +46,22 @@ for(const name of groups.keys()){
   for(const [id,info] of Object.entries(ALGORITHMS))if(STRATEGIES[id][2]===name){const card=document.createElement('div');card.className='algorithm-card';const title=document.createElement('strong');title.textContent=info.name;const rule=document.createElement('p');rule.textContent=`${STRATEGIES[id][0]} · ${info.description}`;const optimal=document.createElement('p');optimal.textContent=info.optimal?'完成且找到路径时保证最短；达到计算上限不算完成。':'不保证最短路径。';card.append(title,rule,optimal);group.append(card);}
   $('algorithm-cards').append(group);
 }
-function note(){const info=ALGORITHMS[selected()];$('algorithm-note').textContent=info.description;}
+function text(id,value){const el=$(id);if(el.textContent!==String(value))el.textContent=String(value);}
+function note(){const info=ALGORITHMS[selected()];text('current-algorithm',info.name+' · 如何选择下一格');text('algorithm-note',info.description);}
 function buttons(){
   for(const id of ['run','compare','pair','study','locate-start','locate-goal'])$(id).disabled=!maze;
-  $('recommend').disabled=!recommendation();$('cancel').disabled=!tasks.active;
+  $('recommend').disabled=!recommendation();$('cancel').disabled=!tasks.active;$('cancel').hidden=!tasks.active;
   $('shuffle').disabled=!maze;$('shuffle').hidden=!!SCENARIOS[scene];
   const p=active();for(const id of ['pause','step','reset','replay','finish'])$(id).disabled=!p?.result;
   $('pause').disabled=!p?.result||p.state==='completed';
-  $('pause').textContent=!p?.result?'播放':p.state==='playing'?(comparing?'同步暂停':'暂停'):p.state==='completed'?'已完成':comparing?'同步播放':'继续';
+  text('pause',!p?.result?'播放':p.state==='playing'?(comparing?'同步暂停':'暂停'):p.state==='completed'?'已完成':comparing?'同步播放':'继续');
+  $('explain').setAttribute('aria-expanded',String($('inspector').open));
 }
 function table(){
   $('results').replaceChildren();
   for(const [algorithm,info] of Object.entries(ALGORITHMS)){
     const row=document.createElement('tr');row.classList.toggle('selected',algorithm===selected());const name=document.createElement('td'),button=document.createElement('button');button.textContent=info.name;button.onclick=()=>{$('algorithm').value=algorithm;choose();};name.append(button);row.append(name);
-    const s=cache.summaries.get(algorithm),values=s?[stateName(s.status),s.pathLength??'—',s.visitedCount,s.expansionCount,s.repeatExpansionCount,s.maxFrontierSize??'不适用',duration(s.elapsedMs)]:Array(7).fill('—');
+    const s=cache.summaries.get(algorithm),values=s?[stateName(s.status),s.pathLength??'—',s.visitedCount,s.expansionCount,s.repeatExpansionCount,s.maxFrontierSize??'不适用',duration(s.elapsedMs)+(s.timingKind==='median'?' 中位数':' 单次')]:Array(7).fill('—');
     for(const value of values){const td=document.createElement('td');td.textContent=typeof value==='number'?value.toLocaleString():value;row.append(td);}
     if(s)row.title=`${s.reason||info.description}；热身 ${s.warmupCount} 次，采样 ${s.sampleCount} 次${s.timingKind==='median'?'取中位数':''}。`;
     $('results').append(row);
@@ -72,12 +75,12 @@ function loadPair(){
   pairPlayback=new PairPlayback(maze.walls.length,rate());pairPlayback.load(left,right,false);overlap=pathOverlap(left,right,maze.walls.length);inspectorId=null;dirty=comparisonDirty=true;return true;
 }
 function launch(kind,options){
-  stopWorker();pauseAll();inspectorId=null;
+  if(tasks.active)stopWorker();pauseAll();inspectorId=null;lastInspection=null;
   if(['pair','compare'].includes(kind)){pairPlayback=new PairPlayback(maze.walls.length,rate());overlap=null;}
   if(kind==='study'){studyRows=[];$('study-body').replaceChildren();$('study-results').hidden=false;}
   const job=tasks.begin(kind,['generate','scenario'].includes(kind)?version+1:version,selected());
   try{
-    worker=new Worker(new URL('./worker.mjs',import.meta.url),{type:'module'});
+    worker??=new Worker(new URL('./worker.mjs',import.meta.url),{type:'module'});
     worker.onmessage=({data})=>{
       if(!tasks.accepts(data))return;
       if(data.kind==='map')adoptMap(data);
@@ -85,22 +88,22 @@ function launch(kind,options){
       else if(['measurement','result'].includes(data.kind)){
         cache.put(data.algorithm,data.result,data.summary);table();
         if(data.result&&data.algorithm===selected()){playback.load(data.result,data.kind==='result'&&!comparing&&!$('styles-dialog').open&&!document.hidden);resetMini();}
-        if(data.kind==='result')status(data.result.status==='limited'?data.result.reason:`${ALGORITHMS[selected()].name}：${stateName(data.result.status)}。热身 1 次，5 次采样取中位数；播放可暂停或单步。`);
+        if(data.kind==='result')status(`${ALGORITHMS[selected()].name}：${stateName(data.result.status)}。单次计算 ${duration(data.summary.elapsedMs)} ms（含讲解记录）。${data.result.status==='limited'?data.result.reason:'可暂停或单步；多次实测请用对比实验。'}`);
       }else if(data.kind==='done'){loadPair();status('实测完成。点击「同步播放」或「单步」，每步两边各展示一个首次探索格子。');}
       else if(data.kind==='study-result'){studyRows.push(data);renderStudy();}
       else if(data.kind==='study-done')status('多场景实验完成，各场景独立统计；当前地图和播放结果保持不变。');
       else if(data.kind==='error'){$('form-error').textContent=data.error;status(`任务未完成：${data.error}。当前地图已保留。`);}
-      if(['map','result','done','error','study-done'].includes(data.kind)){tasks.finish(data);worker?.terminate();worker=null;}
+      if(['map','result','done','error','study-done'].includes(data.kind))tasks.finish(data);
       dirty=true;buttons();
     };
     worker.onerror=event=>{event.preventDefault();if(!tasks.accepts(job))return;stopWorker();status('后台任务出现错误，请重试或换较小地图；当前地图保留。');};
     worker.postMessage({...job,reference:reference(),...(['generate','scenario'].includes(kind)?{options}:{map:maze})});
-    status(['generate','scenario'].includes(kind)?'正在准备地图……':'正在热身并进行多次实测，可在「更多实验」取消。');
+    status(['generate','scenario'].includes(kind)?'正在准备地图……':kind==='search'?'正在搜索，结果就绪后立即播放……':'正在进行多次实测，可随时取消计算。');
   }catch(error){stopWorker();status(`无法启动任务：${error.message}`);}
   dirty=comparisonDirty=true;buttons();
 }
 function adoptMap(data){
-  maze=new Maze(data.map.rows,data.map.cols,data.map);version=maze.version;scene=data.scenario??'custom';
+  maze=new Maze(data.map.rows,data.map.cols,data.map);version=maze.version;scene=data.scenario??'custom';lastInspection=null;
   document.body.dataset.mazeStyle=maze.type;
   cache.clear();playback=new MazePlayback(maze.walls.length,rate());pairPlayback=new PairPlayback(maze.walls.length,rate());overlap=null;geometry=null;inspectorId=null;
   studyRows=[];$('study-results').hidden=true;$('study-body').replaceChildren();
@@ -123,9 +126,11 @@ function chooseStyle(type,seed=maze?.seed??20261018){
 function stopCatalog(){catalogWorker?.terminate();catalogWorker=null;catalogTasks.cancel();}
 function closeCatalog(){if($('styles-dialog').open)$('styles-dialog').close();stopCatalog();dirty=true;}
 function openCatalog(){
-  pauseAll();stopCatalog();dirty=true;$('styles-grid').replaceChildren();$('styles-note').textContent='正在准备十种风格预览……';
+  pauseAll();stopCatalog();dirty=true;
   if(!$('styles-dialog').open)$('styles-dialog').showModal();
-  const seed=maze?.seed??20261018,job=catalogTasks.begin('catalog',0);
+  const seed=maze?.seed??20261018;if(catalogSeed===seed&&$('styles-grid').childElementCount===10)return;
+  catalogSeed=null;$('styles-grid').replaceChildren();$('styles-note').textContent='正在准备十种风格预览……';
+  const job=catalogTasks.begin('catalog',0);
   try{
     catalogWorker=new Worker(new URL('./worker.mjs',import.meta.url),{type:'module'});
     catalogWorker.onmessage=({data})=>{
@@ -138,7 +143,7 @@ function openCatalog(){
         $('styles-grid').append(card);drawComparison(preview,map,null,'#4ce8c3');
       }else if(data.kind==='catalog-done'){
         $('styles-note').textContent=`十种预览均为 31×45、种子 ${seed}。选择后使用当前地图尺寸；「换一张」会更换种子。弯墙仍按四方向网格判定。`;
-        catalogTasks.finish(data);catalogWorker?.terminate();catalogWorker=null;
+        catalogSeed=seed;catalogTasks.finish(data);catalogWorker?.terminate();catalogWorker=null;
       }else if(data.kind==='error'){$('styles-note').textContent=`预览未完成：${data.error}`;stopCatalog();}
     };
     catalogWorker.onerror=event=>{event.preventDefault();if(!catalogTasks.accepts(job))return;$('styles-note').textContent='风格预览暂时未完成，请关闭后重试。';stopCatalog();};
@@ -147,7 +152,7 @@ function openCatalog(){
 }
 function choose(){
   note();if(!maze)return;if(comparing){table();launch('pair');return;}
-  stopWorker();pauseAll();inspectorId=null;playback=new MazePlayback(maze.walls.length,rate());resetMini();const result=cache.get(selected());
+  if(tasks.active)stopWorker();pauseAll();inspectorId=null;lastInspection=null;playback=new MazePlayback(maze.walls.length,rate());resetMini();const result=cache.get(selected());
   if(result){playback.load(result);status('正在重播缓存结果；地图与实测统计保持相同。');}else launch('search');table();buttons();dirty=true;
 }
 function setFit(value){fit=value;document.body.classList.toggle('fit',fit);$('fit').textContent=fit?'完整地图 ✓':'放大查看';$('fit').setAttribute('aria-pressed',String(fit));if(fit)viewport.scrollLeft=viewport.scrollTop=0;dirty=true;}
@@ -155,8 +160,8 @@ function view(){return fit?fitGeometry(maze.rows,maze.cols,Math.max(1,viewport.c
 function locate(cell){if(!maze)return;if(fit)setFit(false);const g=view();viewport.scrollLeft=g.left+viewport.scrollLeft+(cell[0]+.5)*g.size-viewport.clientWidth/2;viewport.scrollTop=g.top+viewport.scrollTop+(cell[1]+.5)*g.size-viewport.clientHeight/2;dirty=true;}
 function sizeStage(){
   const element=comparing?$('compare-stage'):viewport;
-  const bottom=[$('status'),$('progress-track'),$('playback-progress'),...(!comparing?[$('legend')]:[])].reduce((sum,el)=>sum+el.getBoundingClientRect().height,0);
-  const height=stageHeight(innerHeight,element.getBoundingClientRect().top,bottom);
+  const bottom=[$('playbar'),$('viewbar'),$('status'),$('progress-track'),$('playback-progress'),...(!comparing?[$('legend')]:[])].reduce((sum,el)=>sum+el.getBoundingClientRect().height,0);
+  const height=stageHeight(innerHeight,element.getBoundingClientRect().top,bottom,scrollY);
   if(element.style.height!==`${height}px`)element.style.height=`${height}px`;
   if(comparing){const canvasHeight=Math.max(120,Math.min(260,height-160));for(const id of ['left-map','right-map'])$(id).style.height=`${canvasHeight}px`;}
   layoutDirty=false;dirty=comparisonDirty=true;
@@ -185,17 +190,21 @@ function paintPair(time,refresh){
     const d=compareSummaries(left,right);$('difference-summary').textContent=!d.ready?'正在计算同图对照……':d.comparable?`路线${d.pathDelta===0?'同样长':`相差 ${Math.abs(d.pathDelta)} 步，${d.pathDelta>0?ALGORITHMS[b].name:ALGORITHMS[a].name} 更短`}；${ALGORITHMS[a].name} ${d.visitedDelta<=0?'少':'多'}探索 ${Math.abs(d.visitedDelta)} 个格子。`:'本次有算法未返回路径；请区分计算上限、舍弃分支和确认不可达。';
     $('strategy-summary').textContent=`${ALGORITHMS[a].name}：${ALGORITHMS[a].description} ${ALGORITHMS[b].name}：${ALGORITHMS[b].description}`;renderBars();
   }
-  const stats=(s,p)=>!s?'等待计算':`${stateName(s.status)}${s.found?` · 最终 ${s.pathLength} 步`:''}\n扩展 ${s.expansionCount} 次 / 重复 ${s.repeatExpansionCount} 次\n播放 ${p.index}/${p.result?.visitedCount??0} 格 · 中位数 ${duration(s.elapsedMs)} ms`;
-  $('left-stats').textContent=stats(left,lp);$('right-stats').textContent=stats(right,rp);
+  const stats=(s,p)=>!s?'等待计算':`${stateName(s.status)}${s.found?` · 最终 ${s.pathLength} 步`:''}\n扩展 ${s.expansionCount} 次 / 重复 ${s.repeatExpansionCount} 次\n播放 ${p.index}/${p.result?.visitedCount??0} 格 · ${s.timingKind==='median'?'中位数':'单次'} ${duration(s.elapsedMs)} ms`;
+  text('left-stats',stats(left,lp));text('right-stats',stats(right,rp));
   const common=$('common-paths').checked&&pairPlayback.state==='completed'?overlap:null;
   drawComparison($('left-map'),maze,lp.result,'#4ce8c3',{playback:lp,overlap:common,time,intensity:intensity()});
   drawComparison($('right-map'),maze,rp.result,'#ff8b98',{playback:rp,overlap:common,time,intensity:intensity()});
   $('common-stats').textContent=common?.available?`共同 ${common.shared} 段 · 左独有 ${common.leftOnly} 段 · 右独有 ${common.rightOnly} 段`:pairPlayback.state==='completed'?'本次没有同时找到两条路径，不能比较共同路段。':'两边播放完成后显示共同与独有路段。';
 }
-function inspector(){
+function inspector(force=false){
   if(!$('inspector').open||!maze)return;
   const p=comparing?($('inspect-side').value==='right'?pairPlayback.right:pairPlayback.left):playback;
-  const id=inspectorId??(p?.index?p.result.visitedOrder[p.index-1]:null),detail=inspectNode(maze,p?.result,id,p?.index??0);
+  const id=inspectorId??(p?.index?p.result.visitedOrder[p.index-1]:null),now=performance.now();
+  if(!force&&lastInspection?.result===p?.result&&lastInspection?.id===id&&lastInspection?.index===p?.index)return;
+  if(!force&&p?.state==='playing'&&now-lastInspectionPaint<80)return;
+  lastInspection={result:p?.result,id,index:p?.index};lastInspectionPaint=now;
+  const detail=inspectNode(maze,p?.result,id,p?.index??0);
   $('inspect-node').textContent=id===null?'—':coordinate(id);
   for(const [element,key] of [['inspect-g','g'],['inspect-h','h'],['inspect-f','f'],['inspect-frontier','frontierSize']])$(element).textContent=detail?.[key]??'—';
   $('frontier-preview').replaceChildren();
@@ -210,7 +219,7 @@ function inspectClick(event,element,side){
   if(side){const w=element.clientWidth,h=element.clientHeight,size=Math.min((w-16)/maze.cols,(h-16)/maze.rows);g={size,left:(w-maze.cols*size)/2,top:(h-maze.rows*size)/2};$('inspect-side').value=side;}
   else g=geometry;
   if(!g)return;const x=Math.floor((event.clientX-rect.left-g.left)/g.size),y=Math.floor((event.clientY-rect.top-g.top)/g.size);
-  if(x<0||x>=maze.cols||y<0||y>=maze.rows)return;inspectorId=y*maze.cols+x;$('inspector').open=true;layoutDirty=dirty=true;inspector();
+  if(x<0||x>=maze.cols||y<0||y>=maze.rows)return;inspectorId=y*maze.cols+x;$('inspector').open=true;dirty=true;inspector(true);
 }
 function renderStudy(){
   $('study-body').replaceChildren();for(const row of studyRows){const tr=document.createElement('tr'),s=row.summary;for(const text of [SCENARIOS[row.scenario].name,ALGORITHMS[s.algorithm].name,stateName(s.status),s.pathLength??'—',s.expansionCount,duration(s.elapsedMs)]){const td=document.createElement('td');td.textContent=String(text);tr.append(td);}$('study-body').append(tr);}
@@ -219,7 +228,8 @@ function playbackLabels(){
   const p=active(),total=comparing?p?.total??0:p?.result?.visitedCount??0,index=p?.index??0;
   $('progress-fill').style.width=`${total?index/total*100:0}%`;
   const text={idle:'等待搜索',paused:'已暂停',playing:'播放中',completed:'播放完成'}[p?.state??'idle'];
-  $('playback-progress').textContent=comparing?`${text} · 同步步 ${index}/${total} · 左 ${pairPlayback?.left.index??0} 格 / 右 ${pairPlayback?.right.index??0} 格`:`${text} · 已展示 ${index}/${total} 个首次探索格子${p?.state==='completed'&&p.result?.status==='limited'?' · 达限制不代表不可达':''}`;
+  const progress=comparing?`${text} · 同步步 ${index}/${total} · 左 ${pairPlayback?.left.index??0} 格 / 右 ${pairPlayback?.right.index??0} 格`:`${text} · 已展示 ${index}/${total} 个首次探索格子${p?.state==='completed'&&p.result?.status==='limited'?' · 达限制不代表不可达':''}`;
+  if($('playback-progress').textContent!==progress)$('playback-progress').textContent=progress;
 }
 function buildMini(){
   mini.width=Math.min(320,maze.cols);mini.height=Math.max(1,Math.round(mini.width*maze.rows/maze.cols));if(mini.height>320){mini.height=320;mini.width=Math.max(1,Math.round(320*maze.cols/maze.rows));}
@@ -238,7 +248,7 @@ function drawMini(){
 function frame(time){
   const dt=lastTime===null?0:Math.min(.1,(time-lastTime)/1000);lastTime=time;const p=active(),before=p?.index,beforeState=p?.state;p?.update(dt);if(p?.index!==before||p?.state!==beforeState)dirty=true;
   if(layoutDirty)sizeStage();const animate=intensity()>0&&p?.result&&['playing','completed'].includes(p.state)&&!document.hidden;
-  if(dirty||comparisonDirty||(animate&&time-lastPaint>=(quality.reduced?66:33))){const start=performance.now();if(comparing)paintPair(time,comparisonDirty);else paintSingle(time);playbackLabels();buttons();inspector();quality.observe(performance.now()-start);$('effect-quality').textContent=quality.reduced?'已自动降低光效，保持操作响应':'自动性能调节 · 强度 '+$('effect-level').value+'%';dirty=comparisonDirty=false;lastPaint=time;}
+  if(dirty||comparisonDirty||(animate&&time-lastPaint>=(quality.reduced?66:33))){const start=performance.now();if(comparing)paintPair(time,comparisonDirty);else paintSingle(time);if(dirty||comparisonDirty){playbackLabels();buttons();inspector();}quality.observe(performance.now()-start);text('effect-quality',quality.reduced?'已自动降低光效，保持操作响应':'自动性能调节 · 强度 '+$('effect-level').value+'%');dirty=comparisonDirty=false;lastPaint=time;}
   if(time-lastMiniTime>120){const r=mini.getBoundingClientRect();if(r.width&&r.top<innerHeight&&r.bottom>0)drawMini();lastMiniTime=time;}requestAnimationFrame(frame);
 }
 
@@ -278,7 +288,7 @@ function help(){if(!$('tutorial').open)$('tutorial').showModal();}
 function closeHelp(){$('tutorial').close();try{localStorage.setItem('maze-tutorial-seen-v2','1');}catch{/* optional storage */}}
 $('large').onclick=large;$('help').onclick=help;$('close-help').onclick=closeHelp;$('tutorial-example').onclick=()=>{closeHelp();example();};$('keep-map').onclick=closeHelp;
 $('tutorial').addEventListener('cancel',()=>{try{localStorage.setItem('maze-tutorial-seen-v2','1');}catch{/* optional */}});
-document.addEventListener('click',event=>{const menu=event.target.closest('.menu');for(const open of document.querySelectorAll('.menu[open]'))if(open!==menu||event.target.closest('button'))open.open=false;});
+document.addEventListener('click',event=>{const menu=event.target.closest('.menu');for(const open of document.querySelectorAll('.menu[open]'))if(open!==menu||event.target.closest('button'))open.open=false;if(!event.target.closest('#settings'))$('settings').open=false;});
 document.addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey||$('styles-dialog').open)return;if(e.key==='Escape'&&!$('tutorial').open&&document.body.classList.contains('large'))large();if($('tutorial').open)return;if(e.key.toLowerCase()==='f'){large();e.preventDefault();}if(e.key.toLowerCase()==='h')help();if(e.code==='Space'&&e.target===document.body){active()?.toggle();e.preventDefault();dirty=true;}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseAll();lastTime=null;dirty=true;});window.addEventListener('pagehide',()=>{stopWorker();stopCatalog();});
 note();table();buttons();generate(formOptions());requestAnimationFrame(frame);
