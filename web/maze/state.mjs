@@ -56,3 +56,15 @@ export function minimapTarget(px, py, width, height, maze) {
   return [Math.max(0, Math.min(maze.cols - 1, Math.floor(px / width * maze.cols))),
     Math.max(0, Math.min(maze.rows - 1, Math.floor(py / height * maze.rows)))];
 }
+export function fitGeometry(rows, cols, width, height, cap = 28) {
+  const size = Math.min(cap, Math.max(.05, (width - 24) / cols), Math.max(.05, (height - 24) / rows));
+  return { size, left: (width - cols * size) / 2, top: (height - rows * size) / 2,
+    contentWidth: width, contentHeight: height, firstCol: 0, lastCol: cols, firstRow: 0, lastRow: rows };
+}
+export function compareSummaries(left, right) {
+  if (!left || !right) return { ready: false };
+  return { ready: true, comparable: left.found && right.found,
+    pathDelta: left.found && right.found ? left.pathLength - right.pathLength : null,
+    visitedDelta: left.visitedCount - right.visitedCount,
+    explorationReduction: right.visitedCount ? (1 - left.visitedCount / right.visitedCount) * 100 : null };
+}

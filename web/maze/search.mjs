@@ -1,4 +1,5 @@
 import { Maze } from './model.mjs';
+import { advancedSearch } from './advanced.mjs';
 
 export const ALGORITHMS = Object.freeze({
   bfs: { name: 'BFS 广度优先', optimal: true, description: '队列逐层扩展，保证最少步数。' },
@@ -9,6 +10,12 @@ export const ALGORITHMS = Object.freeze({
   bibfs: { name: '双向 BFS', optimal: true, description: '从起点和终点分层搜索，按距离下界决定结束。' },
   bidijkstra: { name: '双向 Dijkstra', optimal: true, description: '两端用优先队列扩展；两侧下界之和达到最优连接成本时结束。' },
   weighted: { name: '加权 A*', optimal: false, description: 'f = g + 1.5h，更偏向目标。不保证最短路径。' },
+  spfa: { name: 'SPFA', optimal: true, description: '队列维护需要松弛的节点；当前单位成本下与 BFS 访问顺序相同。' },
+  bellmanford: { name: 'Bellman–Ford', optimal: true, description: '反复扫描边并松弛距离。适合观察松弛原理，计算量较大。' },
+  iddfs: { name: '迭代加深 DFS', optimal: true, description: '逐次提高深度上限，兼顾深度搜索与最少步数；重复计算较多。' },
+  idastar: { name: 'IDA*', optimal: true, description: '以 g+h 阈值逐次加深，使用曼哈顿下界；节省前沿内存。' },
+  beam: { name: '束搜索（宽 12）', optimal: false, description: '每层仅保留估计最接近终点的 12 个候选；可能舍弃可行路线。' },
+  bigreedy: { name: '双向贪心', optimal: false, description: '两端轮流按 h 朝对方搜索；首次连接即可返回，不保证最短。' },
 });
 
 // Indexed heap: one entry per cell, decrease-key rather than duplicate objects.
@@ -54,7 +61,8 @@ function neighbors(m, id) {
 function chain(parents, end) { const path = []; for (let id = end; id !== -1; id = parents[id]) path.push(id); return path; }
 function result(path, visits, sides, count) {
   return { found: path.length > 0, path: Uint32Array.from(path), visitedOrder: visits.slice(0, count),
-    visitedSides: sides.slice(0, count), visitedCount: count, totalCost: path.length ? path.length - 1 : null };
+    visitedSides: sides.slice(0, count), visitedCount: count, totalCost: path.length ? path.length - 1 : null,
+    status: path.length ? 'found' : 'unreachable', reason: '' };
 }
 function* single(m, algorithm) {
   const n = m.walls.length, parents = new Int32Array(n).fill(-2), visits = new Uint32Array(n), sides = new Uint8Array(n);
@@ -113,13 +121,15 @@ function* bidirectional(m, algorithm) {
   return result(path, visits, sides, count);
 }
 // Capture now, not on the generator's first next(): caller edits cannot leak in.
-export function iterSearch(maze, algorithm = 'astar') {
+export function iterSearch(maze, algorithm = 'astar', options = {}) {
   if (!(maze instanceof Maze) || !Object.hasOwn(ALGORITHMS, algorithm)) throw new Error('地图或算法无效。');
   const snapshot = maze.snapshot();
+  if (['spfa', 'bellmanford', 'iddfs', 'idastar', 'beam', 'bigreedy'].includes(algorithm))
+    return advancedSearch(snapshot, algorithm, options, { neighbors, chain, result, Heap });
   return algorithm === 'bibfs' || algorithm === 'bidijkstra' ? bidirectional(snapshot, algorithm) : single(snapshot, algorithm);
 }
-export function searchMaze(maze, algorithm = 'astar') {
-  const steps = iterSearch(maze, algorithm); let step;
+export function searchMaze(maze, algorithm = 'astar', options = {}) {
+  const steps = iterSearch(maze, algorithm, options); let step;
   do { step = steps.next(); } while (!step.done);
   return step.value;
 }

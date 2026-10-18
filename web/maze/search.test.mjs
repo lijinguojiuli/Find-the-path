@@ -70,3 +70,25 @@ test('调用时捕获快照、重复搜索稳定，迭代结果与收集结果�
   assert.deepEqual(searchMaze(original, 'bibfs'), searchMaze(original, 'bibfs'));
   assert.throws(() => searchMaze(original, 'unknown'));
 });
+test('回归：迭代加深在带环的12×12地图中不重复消耗同深度分支预算', () => {
+  const random = randomSource(20261018); let m;
+  for (let i = 0; i <= 31; i++) {
+    const rows = 2 + random() % 12, cols = 2 + random() % 13;
+    const walls = Uint8Array.from({ length: rows * cols }, () => random() % 100 < 32 ? 1 : 0); walls[0] = walls[walls.length - 1] = 0;
+    m = new Maze(rows, cols, { walls, start: [0, 0], goal: [cols - 1, rows - 1] });
+  }
+  const r = searchMaze(m, 'iddfs'); assert.equal(r.status, 'found'); assert.equal(r.totalCost, reference(m));
+});
+test('六种教学算法预算耗尽明确返回 limited，不能称为不可达', () => {
+  const m=generateMaze({rows:15,cols:25});
+  for(const a of ['spfa','bellmanford','iddfs','idastar','beam','bigreedy']) {
+    const r=searchMaze(m,a,{maxExpansions:1}); assert.equal(r.status,'limited'); assert.ok(r.reason);
+    assert.equal(r.found,false); assert.equal(r.totalCost,null); assert.equal(r.path.length,0);
+  }
+});
+test('窄束确实会舍弃可行路线；扩大束宽可找到原路线', () => {
+  const cells=['.......','.#####.','...#...','#######','#######'];
+  const m=new Maze(5,7,{walls:cells.flatMap(r=>[...r].map(c=>c==='#'?1:0)),start:[0,2],goal:[6,2]});
+  assert.equal(searchMaze(m,'beam',{beamWidth:1}).status,'limited');
+  const r=searchMaze(m,'beam'); assert.ok(r.found); checkPath(m,r,reference(m),false);
+});

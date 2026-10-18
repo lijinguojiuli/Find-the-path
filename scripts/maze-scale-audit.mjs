@@ -13,8 +13,11 @@ for (const [size, type] of [[301, 'corridors'], [301, 'branches'], [301, 'braide
   for (const [algorithm, info] of Object.entries(ALGORITHMS)) {
     if (globalThis.gc) globalThis.gc();
     const { result, summary } = measure(maze, algorithm);
-    assert.ok(result.found); assert.equal(result.path[0], maze.startId); assert.equal(result.path.at(-1), maze.goalId);
-    assert.equal(result.totalCost, result.path.length - 1);
+    if (['bfs','dijkstra','astar','dfs','greedy','bibfs','bidijkstra','weighted'].includes(algorithm)) assert.ok(result.found);
+    if (result.found) {
+      assert.equal(result.path[0], maze.startId); assert.equal(result.path.at(-1), maze.goalId);
+      assert.equal(result.totalCost, result.path.length - 1);
+    } else { assert.equal(result.status,'limited'); assert.equal(result.path.length,0); assert.equal(result.totalCost,null); }
     const seen = new Uint8Array(maze.walls.length);
     for (const id of result.visitedOrder) { assert.equal(maze.walls[id], 0); assert.equal(seen[id], 0); seen[id] = 1; }
     for (let i = 0; i < result.path.length; i++) {
@@ -22,7 +25,7 @@ for (const [size, type] of [[301, 'corridors'], [301, 'branches'], [301, 'braide
       if (i) { const a = result.path[i - 1]; assert.equal(Math.abs(a % maze.cols - id % maze.cols) + Math.abs(Math.floor(a / maze.cols) - Math.floor(id / maze.cols)), 1); }
     }
     if (algorithm === 'bfs') optimal = result.totalCost;
-    if (info.optimal) assert.equal(result.totalCost, optimal);
+    if (info.optimal && result.found) assert.equal(result.totalCost, optimal);
     const memory = process.memoryUsage();
     const record = { size, type, generationMs, ...summary,
       traceMiB: (result.path.byteLength + result.visitedOrder.byteLength + result.visitedSides.byteLength) / 1048576,

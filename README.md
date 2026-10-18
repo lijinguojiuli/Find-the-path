@@ -17,9 +17,9 @@ BFS 优化步数，Dijkstra/A* 优化累计成本；A* 使用最小进入成本�
 完整教程、原理与逐项验收见 [搜索与机器人实验说明](docs/simulation.md)。
 
 另有独立的 [大型迷宫演示](https://robot-path-planning-lab.solarshore32.chatgpt.site/maze/)：
-三种随机迷宫、八种搜索算法，默认 301×301，最高 1001×1001。
+三种随机迷宫、14 种搜索算法；默认 15×25 完整展示，大地图最高 1001×1001。
 从原实验台顶部「迷宫演示」进入；提供独立教程、固定教学示例、可点击小地图与同图对比。
-用滚动查看 28 像素格子，不将整张大地图缩成小点。详见 [迷宫教程与验收](docs/maze.md)。
+推荐地图自动适配视图；支持探索光点、路径流光和双图差异比较。放大查看时每格 16–48 像素。详见 [迷宫教程与验收](docs/maze.md)。
 
 ## 先打开网站，再跟着教程操作
 
@@ -165,14 +165,14 @@ python -X utf8 -B -m venv 'D:\codex\寻路\.venv'
 & 'D:\codex\寻路\.venv\Scripts\python.exe' -X utf8 -m pytest
 ```
 
-Python 当前共 856 项测试，包含固定种子随机地图、独立参考算法、动态重规划与独立迷宫模块。
+Python 当前共 913 项测试，包含固定种子随机地图、独立参考算法、动态重规划与独立迷宫模块。
 此前审计范围和未实现的保存加载缺口见 [测试审计报告](docs/test-audit.md)；新增迷宫验证见 [迷宫验收](docs/maze.md)。
 模型和控制器通过禁用 `site-packages` 的子进程检查，确认不依赖 Pygame。
 事件循环测试使用 SDL dummy 驱动，不打开真实窗口；真实 Windows 窗口验证另记于 `PLAN.md`。
 pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供测试使用，运行时会清空。
 详见 [pytest 临时目录说明](https://docs.pytest.org/en/stable/how-to/tmp_path.html)。
 
-网页模型、搜索、播放、统计、地形、机器人、视图、重规划与迷宫提供 195 项 Node.js 原生测试：
+网页模型、搜索、播放、统计、地形、机器人、视图、重规划与迷宫提供 249 项 Node.js 原生测试：
 
 ```powershell
 node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs web/replanning.test.mjs web/search-worker.test.mjs web/audit.test.mjs
@@ -195,8 +195,8 @@ node --test web/maze/model.test.mjs web/maze/search.test.mjs web/maze/state.test
 - `src/robot_path_lab/__main__.py`：命令行尺寸参数与启动入口。
 - `src/robot_path_lab/web_server.py`：中文网站本地服务，仅提供 `web` 目录。
 - `web`：中文网站、教程、纯逻辑模块、搜索 Worker 与结果播放。
-- `web/maze`：独立的大型迷宫、八算法、后台计算与可见区域绘制。
-- `src/robot_path_lab/maze`：对应的纯 Python 迷宫模型、生成器、八算法与计时。
+- `web/maze`：独立的大型迷宫、14 种算法、后台计算与可见区域绘制。
+- `src/robot_path_lab/maze`：对应的纯 Python 迷宫模型、生成器、14 种算法与计时。
 - `tests`：模型、控制器、像素映射及事件适配测试。
 - `pyproject.toml`：构建、依赖、入口与 pytest 设置。
 - `PLAN.md`：阶段路线、验收标准和实际验证记录。

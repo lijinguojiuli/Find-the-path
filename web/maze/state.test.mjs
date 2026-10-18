@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Tasks, ResultCache, MazePlayback, minimapTarget } from './state.mjs';
+import { Tasks, ResultCache, MazePlayback, minimapTarget, fitGeometry, compareSummaries } from './state.mjs';
 import { generateMaze } from './model.mjs';
 import { searchMaze } from './search.mjs';
 import { executeRequest, measure } from './worker.mjs';
@@ -48,7 +48,7 @@ test('Worker 生成、八算法顺序对比、结果缓冲与错误协议', () =
   const map = messages[0].map; assert.equal(map.version, 3); assert.equal(messages[0].kind, 'map');
   messages.length = 0;
   executeRequest({ id: 2, version: 3, kind: 'compare', map, algorithm: 'astar' }, emit);
-  assert.equal(messages.filter(m => m.kind === 'measurement').length, 8);
+  assert.equal(messages.filter(m => m.kind === 'measurement').length, 14);
   assert.equal(messages.filter(m => m.result).length, 1); assert.equal(messages.at(-1).kind, 'done');
   assert.ok(messages.every(m => m.id === 2 && m.version === 3));
   messages.length = 0; executeRequest({ id: 3, version: 4, kind: 'search', map, algorithm: 'astar' }, emit);
@@ -57,4 +57,28 @@ test('Worker 生成、八算法顺序对比、结果缓冲与错误协议', () =
   assert.equal(messages[0].kind, 'result'); assert.ok(messages[0].result.found);
   messages.length = 0; executeRequest({ id: 5, version: 3, kind: 'search', map, algorithm: 'unknown' }, emit);
   assert.equal(messages[0].kind, 'error');
+});
+test('完整视图在窄窗口同时容纳起终点，百万格不产生无限坐标', () => {
+  for (const [rows, cols, width, height] of [[15,25,605,364],[31,31,400,300],[1001,1001,600,350]]) {
+    const g = fitGeometry(rows, cols, width, height);
+    assert.ok(g.size > 0 && Number.isFinite(g.size));
+    assert.ok(g.left >= 0 && g.top >= 0);
+    assert.ok(g.left + cols * g.size <= width && g.top + rows * g.size <= height);
+  }
+  assert.ok(fitGeometry(15,25,605,364).size >= 16);
+});
+test('差异统计只比较真实同图结果，未知路径和零探索不会变成百分比假结果', () => {
+  const a = { found:true, pathLength:36, visitedCount:67 }, b = { found:true, pathLength:36, visitedCount:131 };
+  const d = compareSummaries(a,b); assert.equal(d.pathDelta,0); assert.equal(d.visitedDelta,-64);
+  assert.ok(d.explorationReduction > 48 && d.explorationReduction < 49);
+  assert.equal(compareSummaries(a,null).ready,false);
+  assert.equal(compareSummaries(a,{found:false,visitedCount:0}).pathDelta,null);
+  assert.equal(compareSummaries(a,{found:false,visitedCount:0}).explorationReduction,null);
+});
+test('两算法对比只返回选择的两种轨迹，仍使用同一版本地图', () => {
+  const map = generateMaze({ rows:15,cols:25,version:9 }), out=[];
+  executeRequest({id:10,version:9,kind:'pair',map,algorithm:'dfs',reference:'astar'},m=>out.push(m));
+  const values=out.filter(m=>m.kind==='measurement');
+  assert.deepEqual(values.map(m=>m.algorithm),['dfs','astar']); assert.ok(values.every(m=>m.result && m.version===9));
+  assert.ok(values[0].summary.pathLength > values[1].summary.pathLength);
 });

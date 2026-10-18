@@ -7,7 +7,7 @@ export function measure(maze, algorithm, now = () => performance.now()) {
   do { step = steps.next(); } while (!step.done);
   const elapsedMs = Math.max(0, now() - started), result = step.value;
   return { result, summary: { algorithm, found: result.found, pathLength: result.found ? result.path.length - 1 : null,
-    totalCost: result.totalCost, visitedCount: result.visitedCount, elapsedMs } };
+    totalCost: result.totalCost, visitedCount: result.visitedCount, elapsedMs, status: result.status, reason: result.reason } };
 }
 export function executeRequest(data, send, now = () => performance.now()) {
   const { id, version, kind } = data;
@@ -18,7 +18,7 @@ export function executeRequest(data, send, now = () => performance.now()) {
       const start = now(), maze = generateMaze({ ...data.options, version });
       emit({ kind: 'map', map: maze, generationMs: Math.max(0, now() - start) }); return;
     }
-    if (kind !== 'search' && kind !== 'compare') throw new Error('未知任务。');
+    if (!['search', 'compare', 'pair'].includes(kind)) throw new Error('未知任务。');
     if (data.map.version !== version) throw new Error('地图版本不匹配。');
     if (!Object.hasOwn(ALGORITHMS, data.algorithm)) throw new Error('未知算法。');
     const maze = new Maze(data.map.rows, data.map.cols, data.map);
@@ -26,10 +26,11 @@ export function executeRequest(data, send, now = () => performance.now()) {
       const { result, summary } = measure(maze, data.algorithm, now);
       emit({ kind: 'result', algorithm: data.algorithm, result, summary });
     } else {
-      for (const algorithm of Object.keys(ALGORITHMS)) {
+      const algorithms = kind === 'pair' ? [...new Set([data.algorithm, data.reference ?? 'bfs'])] : Object.keys(ALGORITHMS);
+      for (const algorithm of algorithms) {
         emit({ kind: 'progress', algorithm });
         const { result, summary } = measure(maze, algorithm, now);
-        emit({ kind: 'measurement', algorithm, summary, ...(algorithm === data.algorithm ? { result } : {}) });
+        emit({ kind: 'measurement', algorithm, summary, ...([data.algorithm, data.reference].includes(algorithm) ? { result } : {}) });
       }
       emit({ kind: 'done' });
     }

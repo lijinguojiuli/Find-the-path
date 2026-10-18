@@ -7,8 +7,9 @@ from math import inf
 
 from .model import Maze
 
-ALGORITHMS = ("bfs", "dijkstra", "astar", "dfs", "greedy", "bibfs", "bidijkstra", "weighted")
-OPTIMAL = ("bfs", "dijkstra", "astar", "bibfs", "bidijkstra")
+CORE_ALGORITHMS = ("bfs", "dijkstra", "astar", "dfs", "greedy", "bibfs", "bidijkstra", "weighted")
+ALGORITHMS = CORE_ALGORITHMS + ("spfa", "bellmanford", "iddfs", "idastar", "beam", "bigreedy")
+OPTIMAL = ("bfs", "dijkstra", "astar", "bibfs", "bidijkstra", "spfa", "bellmanford", "iddfs", "idastar")
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +19,8 @@ class MazeSearchResult:
     visited_order: tuple[int, ...]
     visited_sides: tuple[int, ...]
     total_cost: int | None
+    status: str = "unreachable"
+    reason: str = ""
 
     @property
     def visited_count(self):
@@ -42,7 +45,8 @@ def _chain(parents, end):
 
 
 def _result(path, visits, sides):
-    return MazeSearchResult(bool(path), tuple(path), tuple(visits), tuple(sides), len(path) - 1 if path else None)
+    return MazeSearchResult(bool(path), tuple(path), tuple(visits), tuple(sides), len(path) - 1 if path else None,
+                            "found" if path else "unreachable")
 
 
 def _single(m, algorithm):
@@ -138,15 +142,18 @@ def _bidirectional(m, algorithm):
     return _result(path, visits, sides)
 
 
-def iter_search(maze: Maze, algorithm="astar"):
+def iter_search(maze: Maze, algorithm="astar", **options):
     if not isinstance(maze, Maze) or algorithm not in ALGORITHMS:
         raise ValueError("地图或算法无效。")
+    if algorithm not in CORE_ALGORITHMS:
+        from .advanced import advanced_search
+        return advanced_search(maze, algorithm, **options)
     # Maze is frozen and owns immutable bytes, so this already is a snapshot.
     return _bidirectional(maze, algorithm) if algorithm in ("bibfs", "bidijkstra") else _single(maze, algorithm)
 
 
-def search_maze(maze: Maze, algorithm="astar") -> MazeSearchResult:
-    steps = iter_search(maze, algorithm)
+def search_maze(maze: Maze, algorithm="astar", **options) -> MazeSearchResult:
+    steps = iter_search(maze, algorithm, **options)
     while True:
         try:
             next(steps)

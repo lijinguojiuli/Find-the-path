@@ -112,3 +112,22 @@ console.log(JSON.stringify(out));"""
         assert list(result.path) == item["path"]
         assert list(result.visited_order) == item["visited"]
         assert list(result.visited_sides) == item["sides"]
+
+
+def test_iterative_deepening_cyclic_regression():
+    from robot_path_lab.maze.model import random_source
+    rng = random_source(20261018)
+    for _ in range(32):
+        rows, cols = 2 + rng() % 12, 2 + rng() % 13
+        walls = bytearray(rng() % 100 < 32 for _ in range(rows * cols))
+        walls[0] = walls[-1] = 0
+        m = Maze(rows, cols, walls, (0, 0), (cols - 1, rows - 1))
+    result = search_maze(m, "iddfs")
+    assert result.status == "found" and result.total_cost == reference(m)
+
+
+def test_beam_pruning_does_not_prove_unreachability():
+    cells = [".......", ".#####.", "...#...", "#######", "#######"]
+    m = fixture_maze({"cells":cells,"start":[0,2],"goal":[6,2]})
+    assert search_maze(m,"beam",beam_width=1).status == "limited"
+    assert search_maze(m,"beam").found
