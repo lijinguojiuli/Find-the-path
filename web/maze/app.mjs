@@ -1,4 +1,4 @@
-import { Maze,MAZE_TYPES,parseOptions } from './model.mjs';
+import { Maze,MAZE_TYPES,MAZE_INFO,MAZE_STYLE_ORDER,parseOptions } from './model.mjs';
 import { ALGORITHMS } from './search.mjs';
 import { STRATEGIES } from './trace.mjs';
 import { SCENARIOS } from './scenarios.mjs';
@@ -8,8 +8,9 @@ import { calculateViewport } from '../viewport.mjs';
 import { drawMaze,drawComparison } from './renderer.mjs';
 
 const $=id=>document.getElementById(id),tasks=new Tasks(),cache=new ResultCache(),quality=new EffectsPolicy();
+const catalogTasks=new Tasks();let catalogWorker=null;
 const viewport=$('viewport'),canvas=$('maze-canvas'),mini=$('minimap'),miniCtx=mini.getContext('2d');
-let maze=null,worker=null,playback=null,pairPlayback=null,overlap=null,version=0,scene='loops';
+let maze=null,worker=null,playback=null,pairPlayback=null,overlap=null,version=0,scene='custom';
 let dirty=true,comparisonDirty=true,layoutDirty=true,lastTime=null,lastPaint=0,lastMiniTime=0,geometry=null;
 let miniBase=null,miniPixels=null,miniIndex=0,miniFinished=false,fit=true,comparing=false,inspectorId=null,studyRows=[];
 const selected=()=>$('algorithm').value,reference=()=>$('reference').value,active=()=>comparing?pairPlayback:playback;
@@ -27,7 +28,18 @@ for(const [id,info] of Object.entries(ALGORITHMS)){
 }
 for(const group of groups.values())$('reference').append(group.cloneNode(true));
 $('algorithm').value='astar';$('reference').value='bfs';
-for(const [id,info] of Object.entries(SCENARIOS)){const option=document.createElement('option');option.value=id;option.textContent=info.name;$('scenario').append(option);}
+const styleGroups=new Map(),formGroups=new Map();
+for(const id of MAZE_STYLE_ORDER){
+  const info=MAZE_INFO[id];
+  for(const [target,groupMap,prefix]of [[$('scenario'),styleGroups,'style:'],[$('maze-type'),formGroups,'']]){
+    if(!groupMap.has(info.group)){const group=document.createElement('optgroup');group.label=`随机迷宫 · ${info.group}`;groupMap.set(info.group,group);target.append(group);}
+    const option=document.createElement('option');option.value=prefix+id;option.textContent=info.name;groupMap.get(info.group).append(option);
+  }
+}
+const sceneGroup=document.createElement('optgroup');sceneGroup.label='固定教学场景';$('scenario').append(sceneGroup);
+for(const [id,info] of Object.entries(SCENARIOS)){const option=document.createElement('option');option.value=id;option.textContent=info.name;sceneGroup.append(option);}
+$('maze-type').value='scatter';
+const recommendation=()=>maze?(SCENARIOS[scene]?.recommended??MAZE_INFO[maze.type].recommended):null;
 for(const name of groups.keys()){
   const group=document.createElement('details'),summary=document.createElement('summary');summary.textContent=name;group.append(summary);
   for(const [id,info] of Object.entries(ALGORITHMS))if(STRATEGIES[id][2]===name){const card=document.createElement('div');card.className='algorithm-card';const title=document.createElement('strong');title.textContent=info.name;const rule=document.createElement('p');rule.textContent=`${STRATEGIES[id][0]} · ${info.description}`;const optimal=document.createElement('p');optimal.textContent=info.optimal?'完成且找到路径时保证最短；达到计算上限不算完成。':'不保证最短路径。';card.append(title,rule,optimal);group.append(card);}
@@ -36,7 +48,8 @@ for(const name of groups.keys()){
 function note(){const info=ALGORITHMS[selected()];$('algorithm-note').textContent=info.description;}
 function buttons(){
   for(const id of ['run','compare','pair','study','locate-start','locate-goal'])$(id).disabled=!maze;
-  $('recommend').disabled=!maze||!SCENARIOS[scene];$('cancel').disabled=!tasks.active;
+  $('recommend').disabled=!recommendation();$('cancel').disabled=!tasks.active;
+  $('shuffle').disabled=!maze;$('shuffle').hidden=!!SCENARIOS[scene];
   const p=active();for(const id of ['pause','step','reset','replay','finish'])$(id).disabled=!p?.result;
   $('pause').disabled=!p?.result||p.state==='completed';
   $('pause').textContent=!p?.result?'播放':p.state==='playing'?(comparing?'同步暂停':'暂停'):p.state==='completed'?'已完成':comparing?'同步播放':'继续';
@@ -71,7 +84,7 @@ function launch(kind,options){
       else if(data.kind==='progress')status(`${data.scenario?SCENARIOS[data.scenario].name+' · ':''}${ALGORITHMS[data.algorithm].name}${data.sample?`：样本 ${data.sample}/${data.total}`:'：准备实测'}……`);
       else if(['measurement','result'].includes(data.kind)){
         cache.put(data.algorithm,data.result,data.summary);table();
-        if(data.result&&data.algorithm===selected()){playback.load(data.result,data.kind==='result'&&!comparing);resetMini();}
+        if(data.result&&data.algorithm===selected()){playback.load(data.result,data.kind==='result'&&!comparing&&!$('styles-dialog').open&&!document.hidden);resetMini();}
         if(data.kind==='result')status(data.result.status==='limited'?data.result.reason:`${ALGORITHMS[selected()].name}：${stateName(data.result.status)}。热身 1 次，5 次采样取中位数；播放可暂停或单步。`);
       }else if(data.kind==='done'){loadPair();status('实测完成。点击「同步播放」或「单步」，每步两边各展示一个首次探索格子。');}
       else if(data.kind==='study-result'){studyRows.push(data);renderStudy();}
@@ -88,20 +101,50 @@ function launch(kind,options){
 }
 function adoptMap(data){
   maze=new Maze(data.map.rows,data.map.cols,data.map);version=maze.version;scene=data.scenario??'custom';
+  document.body.dataset.mazeStyle=maze.type;
   cache.clear();playback=new MazePlayback(maze.walls.length,rate());pairPlayback=new PairPlayback(maze.walls.length,rate());overlap=null;geometry=null;inspectorId=null;
   studyRows=[];$('study-results').hidden=true;$('study-body').replaceChildren();
-  $('scenario').value=scene;$('scenario-question').textContent=SCENARIOS[scene]?.question??'自由实验：同一张图中观察路径、容器和计算开销。';
+  $('scenario').value=SCENARIOS[scene]?scene:`style:${maze.type}`;$('scenario-question').textContent=SCENARIOS[scene]?.question??MAZE_INFO[maze.type].description;
   if(SCENARIOS[scene]){[$('algorithm').value,$('reference').value]=SCENARIOS[scene].recommended;note();}
   const label=`${maze.rows}×${maze.cols} · ${SCENARIOS[scene]?.name??MAZE_TYPES[maze.type]}`;
   $('map-title').textContent=label;$('map-meta').textContent=`种子 ${maze.seed} · ${maze.walls.length.toLocaleString()} 格`;$('settings-label').textContent=label;$('compact-meta').textContent=`${maze.rows}×${maze.cols}`;
   $('settings').open=false;$('generation-time').textContent=`生成 ${duration(data.generationMs)} ms。点击小地图定位；白框为当前视图。`;
   $('rows').value=maze.rows;$('cols').value=maze.cols;$('seed').value=maze.seed;$('maze-type').value=maze.type;
   buildMini();viewport.scrollLeft=viewport.scrollTop=0;table();layoutDirty=true;
-  status('地图就绪。点击开始搜索，或按教学场景的推荐组合进行同步对比。');
+  status('地图就绪。点击开始搜索，或按推荐组合进行同步对比。');
 }
 function formOptions(){return {rows:$('rows').value,cols:$('cols').value,seed:$('seed').value,type:$('maze-type').value};}
 function generate(options){try{const parsed=parseOptions(options);$('form-error').textContent='';launch('generate',parsed);}catch(error){$('form-error').textContent=error.message;layoutDirty=true;}}
 function example(){launch('scenario',{scenario:'loops'});}
+function chooseStyle(type,seed=maze?.seed??20261018){
+  $('rows').value=maze?.rows??15;$('cols').value=maze?.cols??25;$('seed').value=seed;$('maze-type').value=type;
+  generate(formOptions());
+}
+function stopCatalog(){catalogWorker?.terminate();catalogWorker=null;catalogTasks.cancel();}
+function closeCatalog(){if($('styles-dialog').open)$('styles-dialog').close();stopCatalog();dirty=true;}
+function openCatalog(){
+  pauseAll();stopCatalog();dirty=true;$('styles-grid').replaceChildren();$('styles-note').textContent='正在准备十种风格预览……';
+  if(!$('styles-dialog').open)$('styles-dialog').showModal();
+  const seed=maze?.seed??20261018,job=catalogTasks.begin('catalog',0);
+  try{
+    catalogWorker=new Worker(new URL('./worker.mjs',import.meta.url),{type:'module'});
+    catalogWorker.onmessage=({data})=>{
+      if(!catalogTasks.accepts(data))return;
+      if(data.kind==='preview'){
+        const map=new Maze(data.map.rows,data.map.cols,data.map),info=MAZE_INFO[map.type],card=document.createElement('button');card.className='style-card';card.dataset.style=map.type;
+        const preview=document.createElement('canvas');preview.setAttribute('role','img');preview.setAttribute('aria-label',`${info.name}预览`);
+        const title=document.createElement('strong');title.textContent=info.name;const group=document.createElement('span');group.className='style-group';group.textContent=info.group;
+        const description=document.createElement('span');description.textContent=info.description;card.append(preview,title,group,description);card.onclick=()=>{closeCatalog();chooseStyle(map.type,seed);};
+        $('styles-grid').append(card);drawComparison(preview,map,null,'#4ce8c3');
+      }else if(data.kind==='catalog-done'){
+        $('styles-note').textContent=`十种预览均为 31×45、种子 ${seed}。选择后使用当前地图尺寸；「换一张」会更换种子。弯墙仍按四方向网格判定。`;
+        catalogTasks.finish(data);catalogWorker?.terminate();catalogWorker=null;
+      }else if(data.kind==='error'){$('styles-note').textContent=`预览未完成：${data.error}`;stopCatalog();}
+    };
+    catalogWorker.onerror=event=>{event.preventDefault();if(!catalogTasks.accepts(job))return;$('styles-note').textContent='风格预览暂时未完成，请关闭后重试。';stopCatalog();};
+    catalogWorker.postMessage({...job,options:{seed}});
+  }catch(error){$('styles-note').textContent=`无法准备预览：${error.message}`;stopCatalog();}
+}
 function choose(){
   note();if(!maze)return;if(comparing){table();launch('pair');return;}
   stopWorker();pauseAll();inspectorId=null;playback=new MazePlayback(maze.walls.length,rate());resetMini();const result=cache.get(selected());
@@ -181,7 +224,8 @@ function playbackLabels(){
 function buildMini(){
   mini.width=Math.min(320,maze.cols);mini.height=Math.max(1,Math.round(mini.width*maze.rows/maze.cols));if(mini.height>320){mini.height=320;mini.width=Math.max(1,Math.round(320*maze.cols/maze.rows));}
   const counts=new Uint32Array(mini.width*mini.height),totals=new Uint32Array(counts.length);for(let id=0;id<maze.walls.length;id++){const p=Math.floor(Math.floor(id/maze.cols)*mini.height/maze.rows)*mini.width+Math.floor(id%maze.cols*mini.width/maze.cols);totals[p]++;if(!maze.walls[id])counts[p]++;}
-  miniBase=miniCtx.createImageData(mini.width,mini.height);for(let p=0;p<counts.length;p++){const open=counts[p]/Math.max(1,totals[p]);for(let c=0;c<3;c++)miniBase.data[p*4+c]=Math.round([40,62,85][c]+open*([16,30,45][c]-[40,62,85][c]));miniBase.data[p*4+3]=255;}resetMini();
+  const wallRGB=maze.type==='scatter'?[223,234,231]:[40,62,85];
+  miniBase=miniCtx.createImageData(mini.width,mini.height);for(let p=0;p<counts.length;p++){const open=counts[p]/Math.max(1,totals[p]);for(let c=0;c<3;c++)miniBase.data[p*4+c]=Math.round(wallRGB[c]+open*([16,30,45][c]-wallRGB[c]));miniBase.data[p*4+3]=255;}resetMini();
 }
 function resetMini(){if(!miniBase)return;miniPixels=new ImageData(new Uint8ClampedArray(miniBase.data),mini.width,mini.height);miniIndex=0;miniFinished=false;dirty=true;}
 function miniPixel(id,rgb){const x=Math.floor(id%maze.cols*mini.width/maze.cols),y=Math.floor(Math.floor(id/maze.cols)*mini.height/maze.rows);miniPixels.data.set(rgb,(y*mini.width+x)*4);}
@@ -202,8 +246,10 @@ $('generate-form').noValidate=true;$('generate-form').onsubmit=e=>{e.preventDefa
 $('preset').onchange=()=>{if($('preset').value==='compact'){$('rows').value=15;$('cols').value=25;}else if($('preset').value!=='custom')$('rows').value=$('cols').value=$('preset').value;};
 for(const id of ['rows','cols'])$(id).oninput=()=>{$('preset').value='custom';};
 $('random').onclick=()=>{const v=new Uint32Array(1);crypto.getRandomValues(v);$('seed').value=v[0];generate(formOptions());};$('example').onclick=example;
-$('scenario').onchange=()=>{if(SCENARIOS[$('scenario').value]){$('form-error').textContent='';launch('scenario',{scenario:$('scenario').value});}};
-$('recommend').onclick=()=>{if(!SCENARIOS[scene])return;[$('algorithm').value,$('reference').value]=SCENARIOS[scene].recommended;mode(true,false);launch('pair');};
+$('scenario').onchange=()=>{const value=$('scenario').value;if(value.startsWith('style:'))chooseStyle(value.slice(6));else if(SCENARIOS[value]){$('form-error').textContent='';launch('scenario',{scenario:value});}else{if(document.body.classList.contains('large'))large();$('settings').open=true;layoutDirty=true;}};
+$('recommend').onclick=()=>{const pair=recommendation();if(!pair)return;[$('algorithm').value,$('reference').value]=pair;mode(true,false);launch('pair');};
+$('shuffle').onclick=()=>{if(!maze)return;const values=new Uint32Array(1);crypto.getRandomValues(values);chooseStyle(maze.type,values[0]);};
+$('style-gallery').onclick=openCatalog;$('styles-close').onclick=closeCatalog;$('styles-dialog').addEventListener('close',stopCatalog);
 $('algorithm').onchange=choose;$('reference').onchange=()=>{if(maze&&comparing)launch('pair');};
 $('run').onclick=()=>{if(!maze)return;if(comparing)launch('pair');else{playback=new MazePlayback(maze.walls.length,rate());resetMini();launch('search');}};
 $('pair').onclick=()=>{if(maze)launch('pair');};$('compare').onclick=()=>{if(maze){mode(true,false);launch('compare');}};
@@ -233,7 +279,7 @@ function closeHelp(){$('tutorial').close();try{localStorage.setItem('maze-tutori
 $('large').onclick=large;$('help').onclick=help;$('close-help').onclick=closeHelp;$('tutorial-example').onclick=()=>{closeHelp();example();};$('keep-map').onclick=closeHelp;
 $('tutorial').addEventListener('cancel',()=>{try{localStorage.setItem('maze-tutorial-seen-v2','1');}catch{/* optional */}});
 document.addEventListener('click',event=>{const menu=event.target.closest('.menu');for(const open of document.querySelectorAll('.menu[open]'))if(open!==menu||event.target.closest('button'))open.open=false;});
-document.addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey)return;if(e.key==='Escape'&&!$('tutorial').open&&document.body.classList.contains('large'))large();if($('tutorial').open)return;if(e.key.toLowerCase()==='f'){large();e.preventDefault();}if(e.key.toLowerCase()==='h')help();if(e.code==='Space'&&e.target===document.body){active()?.toggle();e.preventDefault();dirty=true;}});
-document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseAll();lastTime=null;dirty=true;});window.addEventListener('pagehide',stopWorker);
-note();table();buttons();launch('scenario',{scenario:'loops'});requestAnimationFrame(frame);
+document.addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||e.ctrlKey||e.metaKey||e.altKey||$('styles-dialog').open)return;if(e.key==='Escape'&&!$('tutorial').open&&document.body.classList.contains('large'))large();if($('tutorial').open)return;if(e.key.toLowerCase()==='f'){large();e.preventDefault();}if(e.key.toLowerCase()==='h')help();if(e.code==='Space'&&e.target===document.body){active()?.toggle();e.preventDefault();dirty=true;}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseAll();lastTime=null;dirty=true;});window.addEventListener('pagehide',()=>{stopWorker();stopCatalog();});
+note();table();buttons();generate(formOptions());requestAnimationFrame(frame);
 try{if(!localStorage.getItem('maze-tutorial-seen-v2')||new URLSearchParams(location.search).get('tutorial')==='1')help();}catch{help();}

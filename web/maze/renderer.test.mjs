@@ -44,3 +44,10 @@ test('窄视图画布使用实际CSS尺寸，保证节点评分点击坐标与�
     assert.equal(canvas.width,130);assert.equal(canvas.height,120);
   }finally{globalThis.document=oldDocument;globalThis.devicePixelRatio=oldRatio;}
 });
+test('散墙预览与缩小主图使用相同的浅色墙体，仍以实际墙体数据绘制',()=>{
+  const oldDocument=globalThis.document,oldRatio=globalThis.devicePixelRatio;globalThis.document={createElement:fakeCanvas};globalThis.devicePixelRatio=1;
+  try{const canvas=fakeCanvas(),maze={rows:1,cols:3,type:'scatter',walls:new Uint8Array([0,1,0]),startId:0,goalId:2};
+    drawComparison(canvas,maze,null,'#4ce8c3');assert.deepEqual(canvas.context.image.context.pixels.slice(4,8),[223,234,231,255]);
+    const p={index:0,state:'idle',result:null};drawMaze(canvas,maze,p,{size:1,left:0,top:0},{width:100,height:100,effects:false});assert.deepEqual(canvas.context.image.context.pixels.slice(4,8),[223,234,231,255]);
+  }finally{globalThis.document=oldDocument;globalThis.devicePixelRatio=oldRatio;}
+});

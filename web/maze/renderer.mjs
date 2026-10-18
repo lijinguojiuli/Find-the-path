@@ -7,7 +7,8 @@ function raster(maze, playback) {
   if (!entry || entry.maze !== maze || entry.result !== playback.result || playback.index < entry.index) {
     const canvas = document.createElement('canvas'); canvas.width = maze.cols; canvas.height = maze.rows;
     const ctx = canvas.getContext('2d'), image = ctx.createImageData(maze.cols, maze.rows);
-    for (let id = 0; id < maze.walls.length; id++) image.data.set(maze.walls[id] ? [40, 62, 85, 255] : [16, 30, 45, 255], id * 4);
+    const wallRGB=maze.type==='scatter'?[223,234,231,255]:[40,62,85,255];
+    for (let id = 0; id < maze.walls.length; id++) image.data.set(maze.walls[id] ? wallRGB : [16, 30, 45, 255], id * 4);
     entry = { maze, result:playback.result, canvas, ctx, image, index: 0, done: false }; rasterCache.set(playback, entry);
   }
   let changed = entry.index === 0;
@@ -29,6 +30,7 @@ export function drawMaze(canvas, maze, playback, g, { time = 0, effects = true, 
   }
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.fillStyle = '#0a1522'; ctx.fillRect(0, 0, width, height);
   if (g.size < 6) { ctx.imageSmoothingEnabled = false; ctx.drawImage(raster(maze, playback), g.left, g.top, maze.cols * g.size, maze.rows * g.size); }
+  else if(maze.type==='scatter')drawWallPlan(ctx,maze,playback,g);
   else for (let y = g.firstRow; y < g.lastRow; y++) for (let x = g.firstCol; x < g.lastCol; x++) {
     const id = y * maze.cols + x, px = g.left + x * g.size, py = g.top + y * g.size, gap = Math.max(.65, Math.min(2, g.size * .07));
     ctx.fillStyle = maze.walls[id] ? palette.wall : playback.pathMask[id] ? palette.path : playback.mask[id] === 2 ? palette.backward : playback.mask[id] ? palette.forward : palette.open;
@@ -58,6 +60,22 @@ export function drawMaze(canvas, maze, playback, g, { time = 0, effects = true, 
   }
   if(Number.isInteger(highlight)&&highlight>=0&&highlight<maze.walls.length){const[x,y]=point(highlight);ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,Math.max(4,g.size*.45),0,7);ctx.stroke();}
 }
+function drawWallPlan(ctx,maze,playback,g){
+  ctx.fillStyle=palette.open;ctx.fillRect(g.left,g.top,maze.cols*g.size,maze.rows*g.size);
+  for(let y=g.firstRow;y<g.lastRow;y++)for(let x=g.firstCol;x<g.lastCol;x++){
+    const id=y*maze.cols+x;if(maze.walls[id]||(!playback.mask[id]&&!playback.pathMask[id]))continue;
+    ctx.fillStyle=playback.pathMask[id]?palette.path:playback.mask[id]===2?palette.backward:palette.forward;
+    ctx.fillRect(g.left+x*g.size,g.top+y*g.size,g.size,g.size);
+  }
+  ctx.strokeStyle=ctx.fillStyle='#dfeae7';ctx.lineWidth=g.size*.65;ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.beginPath();
+  for(let y=g.firstRow;y<g.lastRow;y++)for(let x=g.firstCol;x<g.lastCol;x++)if(maze.walls[y*maze.cols+x]){
+    const px=g.left+(x+.5)*g.size,py=g.top+(y+.5)*g.size;
+    if(x<maze.cols-1&&maze.walls[y*maze.cols+x+1]){ctx.moveTo(px,py);ctx.lineTo(px+g.size,py);}
+    if(y<maze.rows-1&&maze.walls[(y+1)*maze.cols+x]){ctx.moveTo(px,py);ctx.lineTo(px,py+g.size);}
+  }ctx.stroke();
+  for(let y=g.firstRow;y<g.lastRow;y++)for(let x=g.firstCol;x<g.lastCol;x++)if(maze.walls[y*maze.cols+x]){ctx.beginPath();ctx.arc(g.left+(x+.5)*g.size,g.top+(y+.5)*g.size,g.size*.325,0,Math.PI*2);ctx.fill();}
+}
 export function drawComparison(canvas, maze, result, color,{playback=null,overlap=null,time=0,intensity=0}={}) {
   const width = Math.max(1, canvas.clientWidth), height = Math.max(1,canvas.clientHeight||210), ratio = Math.min(2, devicePixelRatio || 1);
   if(canvas.width!==Math.round(width*ratio)||canvas.height!==Math.round(height*ratio)){canvas.width = Math.round(width * ratio); canvas.height = Math.round(height*ratio);}
@@ -67,7 +85,8 @@ export function drawComparison(canvas, maze, result, color,{playback=null,overla
   let terrain=comparisonCache.get(key);
   if(!terrain||terrain.maze!==maze||terrain.result!==result||visible<terrain.index){
     const image=document.createElement('canvas');image.width=maze.cols;image.height=maze.rows;const ic=image.getContext('2d'),pixels=ic.createImageData(maze.cols,maze.rows);
-    for(let id=0;id<maze.walls.length;id++)pixels.data.set(maze.walls[id]?[40,62,85,255]:[16,30,45,255],id*4);
+    const wallRGB=maze.type==='scatter'?[223,234,231,255]:[40,62,85,255];
+    for(let id=0;id<maze.walls.length;id++)pixels.data.set(maze.walls[id]?wallRGB:[16,30,45,255],id*4);
     terrain={maze,result,image,ic,pixels,index:0,dirty:true};comparisonCache.set(key,terrain);
   }
   for(;terrain.index<visible;terrain.index++){terrain.pixels.data.set([34,76,96,255],result.visitedOrder[terrain.index]*4);terrain.dirty=true;}

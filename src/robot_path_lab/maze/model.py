@@ -1,7 +1,9 @@
 """Compact maze snapshots and iterative, seed-reproducible generators."""
 from dataclasses import dataclass
+from .generators import LANDSCAPE_TYPES, generate_landscape
 
-MAZE_TYPES = ("corridors", "branches", "braided")
+CLASSIC_TYPES = ("corridors", "branches", "braided")
+MAZE_TYPES = CLASSIC_TYPES + LANDSCAPE_TYPES
 
 
 def validate_size(rows: int, cols: int) -> None:
@@ -69,6 +71,9 @@ def generate_maze(rows=301, cols=301, *, type="braided", seed=20261018, version=
     if type not in MAZE_TYPES:
         raise ValueError("未知迷宫类型。")
     random = random_source(seed)
+    if type not in CLASSIC_TYPES:
+        walls,start,goal = generate_landscape(rows,cols,type,random)
+        return Maze(rows,cols,walls,start,goal,seed,type,version)
     walls = bytearray([1]) * (rows * cols)
     jumps, halves = (-2 * cols, 2, 2 * cols, -2), (-cols, 1, cols, -1)
     def valid(cell, direction):

@@ -8,10 +8,10 @@ import subprocess
 import pytest
 
 from robot_path_lab.maze import MAZE_TYPES, Maze, generate_maze
-from robot_path_lab.maze.model import validate_size
+from robot_path_lab.maze.model import validate_size, CLASSIC_TYPES
 
 
-@pytest.mark.parametrize("kind", MAZE_TYPES)
+@pytest.mark.parametrize("kind", CLASSIC_TYPES)
 @pytest.mark.parametrize("seed", [0, 42, 20261018])
 @pytest.mark.parametrize("size", [(11, 11), (13, 15), (31, 31)])
 def test_generator_is_reproducible_connected_and_has_only_two_entrances(kind, seed, size):
@@ -39,7 +39,7 @@ def test_generator_is_reproducible_connected_and_has_only_two_entrances(kind, se
                 assert maze.walls[y * cols + x] == 0
 
 
-@pytest.mark.parametrize("kind", MAZE_TYPES)
+@pytest.mark.parametrize("kind", CLASSIC_TYPES)
 def test_tree_and_loop_topology(kind):
     m = generate_maze(31, 31, type=kind, seed=42)
     edges = sum((i % m.cols < m.cols - 1 and not m.walls[i + 1])

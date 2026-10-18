@@ -1,5 +1,14 @@
 // Pure data and deterministic generation; no browser or rendering dependencies.
-export const MAZE_TYPES = Object.freeze({ corridors: '长走廊', branches: '多分支', braided: '带环路' });
+import { LANDSCAPE_INFO,generateLandscape } from './generators.mjs';
+export const CLASSIC_TYPES=Object.freeze(['corridors','branches','braided']);
+export const MAZE_INFO=Object.freeze({
+  corridors:{name:'长走廊',group:'经典走廊',description:'深度优先挖掘，长走廊与回溯分支。',recommended:['bfs','greedy']},
+  branches:{name:'多分支',group:'经典走廊',description:'随机 Prim 挖掘，短分支交错。',recommended:['bfs','astar']},
+  braided:{name:'带环路',group:'经典走廊',description:'在走廊迷宫中增加通道，形成多条可行路线。',recommended:['dfs','astar']},
+  ...LANDSCAPE_INFO,
+});
+export const MAZE_TYPES=Object.freeze(Object.fromEntries(Object.entries(MAZE_INFO).map(([id,info])=>[id,info.name])));
+export const MAZE_STYLE_ORDER=Object.freeze(['scatter','rooms','cave','division','spiral','gates','random',...CLASSIC_TYPES]);
 export function validateSize(rows, cols) {
   if (![rows, cols].every(n => Number.isInteger(n) && n >= 11 && n <= 1001 && n % 2 === 1))
     throw new Error('行数和列数须为 11–1001 之间的奇数。');
@@ -42,6 +51,7 @@ export function generateMaze({ rows = 301, cols = 301, type = 'braided', seed = 
   validateSize(rows, cols); validateSeed(seed);
   if (!Object.hasOwn(MAZE_TYPES, type)) throw new Error('未知迷宫类型。');
   const random = randomSource(seed), n = rows * cols, walls = new Uint8Array(n).fill(1);
+  if(!CLASSIC_TYPES.includes(type))return new Maze(rows,cols,{...generateLandscape(rows,cols,type,random),seed,type,version});
   const jumps = [-2 * cols, 2, 2 * cols, -2], halves = [-cols, 1, cols, -1];
   const valid = (id, direction) => {
     const x = id % cols, y = Math.floor(id / cols);

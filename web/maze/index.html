@@ -2,19 +2,19 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#087f73">
-<meta name="description" content="14种寻路算法：同步双图、节点讲解、教学场景与多次实测。">
+<meta name="description" content="十种随机迷宫与14种寻路算法：不规则散墙、建筑房间、自然洞穴及同步比较。">
 <title>迷宫观察室 · 同步探索与算法实验</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23087f73'/%3E%3Cpath d='M10 29V10h20v19H20V20' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./learning.css">
+<link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./learning.css"><link rel="stylesheet" href="./styles-gallery.css">
 </head>
 <body class="fit"><div class="shell">
-<header><a class="brand" href="../"><span class="brand-mark">↱</span><span>迷宫观察室<small>14 种算法 · 一步步看懂</small></span></a><div class="header-actions"><a href="../" class="quiet">返回实验台</a><button id="help" aria-label="新手教程">怎么玩 <kbd>H</kbd></button><button id="large" title="扩大网页布局，保留底部系统任务栏" aria-pressed="false">大屏模式 <kbd>F</kbd></button></div></header>
-<details class="generator card" id="settings"><summary><span id="settings-label">15 × 25 · 带环路</span><span>调整迷宫与进阶大图 ⌄</span></summary><div class="settings-body"><h2>创建可复现的地图</h2><form id="generate-form">
-<label>类型<select id="maze-type"><option value="braided">带环路</option><option value="corridors">长走廊</option><option value="branches">多分支</option></select></label>
+<header><a class="brand" href="../"><span class="brand-mark">↱</span><span>迷宫观察室<small>14 种算法 · 一步步看懂</small></span></a><div class="header-actions"><a href="../" class="quiet">返回实验台</a><button id="style-gallery">▦ 迷宫风格</button><button id="help" aria-label="新手教程">怎么玩 <kbd>H</kbd></button><button id="large" title="扩大网页布局，保留底部系统任务栏" aria-pressed="false">大屏模式 <kbd>F</kbd></button></div></header>
+<details class="generator card" id="settings"><summary><span id="settings-label">15 × 25 · 不规则散墙</span><span>调整迷宫与进阶大图 ⌄</span></summary><div class="settings-body"><h2>创建可复现的地图</h2><form id="generate-form">
+<label>类型<select id="maze-type"></select></label>
 <label>尺寸<select id="preset"><option value="compact">15 × 25 推荐</option><option value="31">31 × 31</option><option value="51">51 × 51</option><option value="101">101 × 101</option><option value="301">301 × 301</option><option value="501">501 × 501</option><option value="1001">1001 × 1001</option><option value="custom">自定义</option></select></label>
 <label>行数<input id="rows" type="number" min="11" max="1001" step="2" value="15" required></label><label>列数<input id="cols" type="number" min="11" max="1001" step="2" value="25" required></label><label>种子<input id="seed" type="number" min="0" max="4294967295" value="20261018" required></label>
 <button class="primary" type="submit">生成迷宫</button><button id="random" type="button">随机一张</button><button id="example" type="button">教学示例</button></form><p class="hint">行列须为 11–1001 的奇数。相同类型、尺寸和种子可复现；推荐小地图完整显示。</p><p id="form-error" class="error" role="alert"></p></div></details>
-<section class="scenario-bar"><label for="scenario">教学场景</label><select id="scenario"><option value="custom">自由实验</option></select><button id="recommend">按推荐组合对比</button><p id="scenario-question">先观察，再提出自己的猜想。</p></section>
+<section class="scenario-bar"><label for="scenario">地图</label><select id="scenario"><option value="custom">自由实验</option></select><button id="recommend">按推荐组合对比</button><button id="shuffle" title="随机生成当前迷宫风格">换一张</button><p id="scenario-question">先观察，再提出自己的猜想。</p></section>
 <main class="layout"><section class="workspace card" aria-label="迷宫搜索演示">
 <nav class="mode-tabs" aria-label="展示方式"><button id="mode-explore" class="active" aria-pressed="true">✦ 探索动画</button><button id="mode-compare" aria-pressed="false">⇄ 同步对比</button><span id="compact-meta"></span></nav>
 <div class="workspace-title"><h2 id="map-title">准备迷宫</h2><span id="map-meta"></span></div>
@@ -35,5 +35,6 @@
 </section><aside><section class="card overview"><div class="card-title"><h2>迷宫概览</h2><span>点击定位</span></div><canvas id="minimap" width="320" height="320" tabindex="0" role="button" aria-label="小地图，点击定位；Enter 定位终点，Home 定位起点"></canvas><p id="generation-time" class="hint"></p></section><section class="card catalogue"><h2>算法卡片</h2><p class="hint">按策略分组，展开查看容器与最优性。</p><div id="algorithm-cards"></div></section></aside></main>
 <footer>独立迷宫观察室 · 原实验台继续提供地图编辑、机器人移动和动态重新规划。</footer>
 </div>
-<dialog id="tutorial" aria-labelledby="tutorial-title"><button id="close-help" class="close" aria-label="关闭教程">×</button><span class="eyebrow">探索 · 对比 · 解释</span><h2 id="tutorial-title">一起看懂算法为什么这样走。</h2><ol><li><strong>选教学场景。</strong>每张小地图都有观察问题和推荐算法组合。</li><li><strong>开始或同步对比。</strong>点播放、暂停或单步；一方先完成后，另一方会继续。</li><li><strong>打开本步讲解。</strong>点击格子看 g/h/f，以及取出节点后的容器预览。最多保留前 512 个新探索格子的详细快照。</li><li><strong>分清比较指标。</strong>不同格子数不等于实际扩展次数。达上限不代表不可达，也不参加完整路径比较。</li><li><strong>多次实测。</strong>热身后采样 5 次取中位数；多场景实验使用固定地图，每张分别统计。</li></ol><p>大屏模式保留 Windows 任务栏。F 切换，Esc 退出，H 打开教程。光效支持手动强度和性能自动降级。</p><button id="tutorial-example" class="primary">从教学示例开始</button><button id="keep-map">保留当前地图</button></dialog>
+<dialog id="tutorial" aria-labelledby="tutorial-title"><button id="close-help" class="close" aria-label="关闭教程">×</button><span class="eyebrow">探索 · 对比 · 解释</span><h2 id="tutorial-title">一起看懂算法为什么这样走。</h2><ol><li><strong>先选地图风格。</strong>右上「迷宫风格」可预览十种随机迷宫，包括参考手绘的不规则散墙。用「换一张」更换种子；教学场景也在地图列表中。</li><li><strong>开始或同步对比。</strong>点播放、暂停或单步；一方先完成后，另一方会继续。</li><li><strong>打开本步讲解。</strong>点击格子看 g/h/f，以及取出节点后的容器预览。最多保留前 512 个新探索格子的详细快照。</li><li><strong>分清比较指标。</strong>不同格子数不等于实际扩展次数。达上限不代表不可达，也不参加完整路径比较。</li><li><strong>多次实测。</strong>热身后采样 5 次取中位数；多场景实验使用固定地图，每张分别统计。</li></ol><p>大屏模式保留 Windows 任务栏。F 切换，Esc 退出，H 打开教程。光效支持手动强度和性能自动降级。</p><button id="tutorial-example" class="primary">从教学示例开始</button><button id="keep-map">保留当前地图</button></dialog>
+<dialog id="styles-dialog" aria-labelledby="styles-title"><button id="styles-close" class="close" aria-label="关闭风格图鉴">×</button><span class="eyebrow">十种随机迷宫 · 同尺寸预览</span><h2 id="styles-title">选一种你想探索的空间。</h2><p id="styles-note">预览为 31×45，选择后使用当前地图尺寸；相同种子可复现。</p><div id="styles-grid" class="styles-grid"></div></dialog>
 <script type="module" src="./app.mjs"></script></body></html>

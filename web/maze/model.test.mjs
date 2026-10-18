@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Maze, MAZE_TYPES, generateMaze, validateSize, parseOptions } from './model.mjs';
+import { Maze, MAZE_TYPES, CLASSIC_TYPES, generateMaze, validateSize, parseOptions } from './model.mjs';
 
 function connected(maze) {
   const seen = new Set([maze.startId]), queue = [maze.startId];
@@ -15,7 +15,8 @@ function connected(maze) {
   }
   return seen;
 }
-for (const type of Object.keys(MAZE_TYPES)) for (const seed of [0, 42, 20261018]) for (const [rows, cols] of [[11, 11], [13, 15], [31, 31]]) {
+// Odd-room and tree invariants belong to the original carving families only.
+for (const type of CLASSIC_TYPES) for (const seed of [0, 42, 20261018]) for (const [rows, cols] of [[11, 11], [13, 15], [31, 31]]) {
   test(`生成 ${type} ${rows}×${cols} seed=${seed}：复现、连通、边界`, () => {
     const maze = generateMaze({ rows, cols, type, seed, version: 7 });
     assert.deepEqual(maze, generateMaze({ rows, cols, type, seed, version: 7 }));
@@ -31,7 +32,7 @@ for (const type of Object.keys(MAZE_TYPES)) for (const seed of [0, 42, 20261018]
   });
 }
 test('树形迷宫无环，带环路迷宫确实存在多条通道', () => {
-  for (const type of Object.keys(MAZE_TYPES)) {
+  for (const type of CLASSIC_TYPES) {
     const m = generateMaze({ rows: 31, cols: 31, type, seed: 42 });
     let vertices = 0, edges = 0;
     for (let id = 0; id < m.walls.length; id++) if (!m.walls[id]) {

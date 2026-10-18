@@ -1,4 +1,4 @@
-import { Maze, generateMaze } from './model.mjs';
+import { Maze, generateMaze,MAZE_STYLE_ORDER } from './model.mjs';
 import { ALGORITHMS, iterSearch } from './search.mjs';
 import { SCENARIOS,createScenario } from './scenarios.mjs';
 
@@ -32,6 +32,10 @@ export function executeRequest(data, send, now = () => performance.now()) {
   const emit = response => send({ id, version, ...response });
   try {
     if (!Number.isSafeInteger(id) || id < 1 || !Number.isSafeInteger(version) || version < 0) throw new Error('任务编号无效。');
+    if(kind==='catalog'){
+      for(const type of MAZE_STYLE_ORDER)emit({kind:'preview',type,map:generateMaze({rows:31,cols:45,type,seed:data.options?.seed??20261018,version})});
+      emit({kind:'catalog-done'});return;
+    }
     if (kind === 'generate'||kind==='scenario') {
       const start = now(), maze = kind==='scenario'?createScenario(data.options.scenario,version):generateMaze({ ...data.options, version });
       emit({ kind: 'map', map: maze, generationMs: Math.max(0, now() - start),scenario:kind==='scenario'?data.options.scenario:null }); return;
