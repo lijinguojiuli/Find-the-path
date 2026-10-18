@@ -13,6 +13,9 @@ for (const [size, type] of [[301, 'corridors'], [301, 'branches'], [301, 'braide
   for (const [algorithm, info] of Object.entries(ALGORITHMS)) {
     if (globalThis.gc) globalThis.gc();
     const { result, summary } = measure(maze, algorithm);
+    assert.equal(result.expansionCount,result.visitedCount+result.repeatExpansionCount);
+    assert.equal(result.visitedG.length,result.visitedCount);assert.equal(result.visitedFrontier.length,result.visitedCount);
+    assert.ok(result.teachingFrames.length<=512);assert.ok(result.workCount>=result.expansionCount);
     if (['bfs','dijkstra','astar','dfs','greedy','bibfs','bidijkstra','weighted'].includes(algorithm)) assert.ok(result.found);
     if (result.found) {
       assert.equal(result.path[0], maze.startId); assert.equal(result.path.at(-1), maze.goalId);
@@ -28,7 +31,7 @@ for (const [size, type] of [[301, 'corridors'], [301, 'branches'], [301, 'braide
     if (info.optimal && result.found) assert.equal(result.totalCost, optimal);
     const memory = process.memoryUsage();
     const record = { size, type, generationMs, ...summary,
-      traceMiB: (result.path.byteLength + result.visitedOrder.byteLength + result.visitedSides.byteLength) / 1048576,
+      traceMiB: (result.path.byteLength + result.visitedOrder.byteLength + result.visitedSides.byteLength +result.visitedG.byteLength+result.visitedFrontier.byteLength+Buffer.byteLength(JSON.stringify(result.teachingFrames))) / 1048576,
       rssMiB: memory.rss / 1048576, arrayBuffersMiB: memory.arrayBuffers / 1048576 };
     records.push(record); console.log(JSON.stringify(record));
   }

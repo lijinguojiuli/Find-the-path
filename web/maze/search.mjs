@@ -1,5 +1,6 @@
 import { Maze } from './model.mjs';
 import { advancedSearch } from './advanced.mjs';
+import { SearchTrace } from './trace.mjs';
 
 export const ALGORITHMS = Object.freeze({
   bfs: { name: 'BFS 广度优先', optimal: true, description: '队列逐层扩展，保证最少步数。' },
@@ -35,6 +36,15 @@ class Heap {
     while (p > 0) { const parent = (p - 1) >> 1; if (!this.less(this.ids[p], this.ids[parent])) break; this.swap(p, parent); p = parent; }
   }
   get minimum() { return this.size ? this.priorities[this.ids[0]] : Infinity; }
+  preview(limit=6) {
+    const candidates=this.size?[0]:[],out=[];
+    while(candidates.length&&out.length<limit) {
+      candidates.sort((a,b)=>this.less(this.ids[a],this.ids[b])?-1:1);
+      const i=candidates.shift();out.push(this.ids[i]);
+      for(const child of [i*2+1,i*2+2])if(child<this.size)candidates.push(child);
+    }
+    return out;
+  }
   pop() {
     const id = this.ids[0]; this.positions[id] = -1;
     if (--this.size) {
@@ -64,7 +74,8 @@ function result(path, visits, sides, count) {
     visitedSides: sides.slice(0, count), visitedCount: count, totalCost: path.length ? path.length - 1 : null,
     status: path.length ? 'found' : 'unreachable', reason: '' };
 }
-function* single(m, algorithm) {
+function* single(m, algorithm, options) {
+  const trace=new SearchTrace(m,algorithm,options);
   const n = m.walls.length, parents = new Int32Array(n).fill(-2), visits = new Uint32Array(n), sides = new Uint8Array(n);
   const marked = new Uint8Array(n), scores = new Float64Array(n).fill(Infinity);
   const linear = algorithm === 'bfs' || algorithm === 'dfs', queue = linear ? new Uint32Array(n) : null, heap = linear ? null : new Heap(n);
@@ -73,23 +84,28 @@ function* single(m, algorithm) {
   let head = 0, tail = 0, count = 0;
   parents[m.startId] = -1; scores[m.startId] = 0;
   if (linear) queue[tail++] = m.startId; else heap.put(m.startId, priority(m.startId, 0));
+  trace.observe(1);
   while (linear ? head < tail : heap.size) {
     const id = linear ? (algorithm === 'dfs' ? queue[--tail] : queue[head++]) : heap.pop();
+    trace.expand(id,scores[id],1,linear?tail-head:heap.size,()=>linear?(algorithm==='dfs'?Array.from(queue.subarray(Math.max(head,tail-6),tail)).reverse():Array.from(queue.subarray(head,Math.min(tail,head+6)))):heap.preview());
     if (!marked[id]) { marked[id] = 1; visits[count] = id; sides[count++] = 1; yield { id, side: 1 }; }
-    if (id === m.goalId) return result(chain(parents, id).reverse(), visits, sides, count);
+    if (id === m.goalId) return trace.finish(result(chain(parents, id).reverse(), visits, sides, count));
     const adjacent = neighbors(m, id);
     if (algorithm === 'dfs') adjacent.reverse(); // Stack pops up/right/down/left deterministically.
     for (const next of adjacent) {
+      trace.edgeScans++;
       const g = scores[id] + 1;
       if (linear || algorithm === 'greedy') { if (parents[next] !== -2) continue; }
       else if (g >= scores[next]) continue;
       parents[next] = id; scores[next] = g;
       if (linear) queue[tail++] = next; else heap.put(next, priority(next, g));
+      trace.observe(linear?tail-head:heap.size);
     }
   }
-  return result([], visits, sides, count);
+  return trace.finish(result([], visits, sides, count));
 }
-function* bidirectional(m, algorithm) {
+function* bidirectional(m, algorithm, options) {
+  const trace=new SearchTrace(m,algorithm,options);
   const n = m.walls.length, distances = [new Float64Array(n).fill(Infinity), new Float64Array(n).fill(Infinity)];
   const parents = [new Int32Array(n).fill(-1), new Int32Array(n).fill(-1)];
   const queues = [new Uint32Array(n), new Uint32Array(n)], heads = [0, 0], tails = [1, 1];
@@ -98,6 +114,7 @@ function* bidirectional(m, algorithm) {
   distances[0][m.startId] = distances[1][m.goalId] = 0;
   queues[0][0] = m.startId; queues[1][0] = m.goalId;
   if (heaps) { heaps[0].put(m.startId, 0); heaps[1].put(m.goalId, 0); }
+  const frontierSize=()=>heaps?heaps[0].size+heaps[1].size:tails[0]-heads[0]+tails[1]-heads[1];trace.observe(2);
   let best = Infinity, meeting = -1, count = 0;
   const minimum = s => heaps ? heaps[s].minimum : heads[s] < tails[s] ? distances[s][queues[s][heads[s]]] : Infinity;
   while (true) {
@@ -105,28 +122,31 @@ function* bidirectional(m, algorithm) {
     if (!Number.isFinite(a) || !Number.isFinite(b) || a + b >= best) break;
     const side = a <= b ? 0 : 1, other = 1 - side;
     const id = heaps ? heaps[side].pop() : queues[side][heads[side]++];
+    trace.expand(id,distances[side][id],side+1,frontierSize(),()=>heaps?heaps[side].preview():Array.from(queues[side].subarray(heads[side],Math.min(tails[side],heads[side]+6))));
     if (!marked[id]) { marked[id] = 1; visits[count] = id; sides[count++] = side + 1; yield { id, side: side + 1 }; }
     if (distances[side][id] + distances[other][id] < best) { best = distances[side][id] + distances[other][id]; meeting = id; }
     for (const next of neighbors(m, id)) {
+      trace.edgeScans++;
       const candidate = distances[side][id] + 1;
       if (candidate < distances[side][next]) {
         distances[side][next] = candidate; parents[side][next] = id;
         if (heaps) heaps[side].put(next, candidate); else queues[side][tails[side]++] = next;
+        trace.observe(frontierSize());
       }
       const connection = distances[side][next] + distances[other][next];
       if (connection < best) { best = connection; meeting = next; }
     }
   }
   const path = meeting < 0 ? [] : chain(parents[0], meeting).reverse().concat(chain(parents[1], meeting).slice(1));
-  return result(path, visits, sides, count);
+  return trace.finish(result(path, visits, sides, count));
 }
 // Capture now, not on the generator's first next(): caller edits cannot leak in.
 export function iterSearch(maze, algorithm = 'astar', options = {}) {
   if (!(maze instanceof Maze) || !Object.hasOwn(ALGORITHMS, algorithm)) throw new Error('地图或算法无效。');
   const snapshot = maze.snapshot();
   if (['spfa', 'bellmanford', 'iddfs', 'idastar', 'beam', 'bigreedy'].includes(algorithm))
-    return advancedSearch(snapshot, algorithm, options, { neighbors, chain, result, Heap });
-  return algorithm === 'bibfs' || algorithm === 'bidijkstra' ? bidirectional(snapshot, algorithm) : single(snapshot, algorithm);
+    return advancedSearch(snapshot, algorithm, options, { neighbors, chain, result, Heap, SearchTrace });
+  return algorithm === 'bibfs' || algorithm === 'bidijkstra' ? bidirectional(snapshot, algorithm,options) : single(snapshot, algorithm,options);
 }
 export function searchMaze(maze, algorithm = 'astar', options = {}) {
   const steps = iterSearch(maze, algorithm, options); let step;

@@ -43,7 +43,7 @@ for (const fixture of fixtures) for (const [algorithm, info] of Object.entries(A
     checkPath(m, searchMaze(m, algorithm), reference(m), info.optimal);
   });
 }
-test('固定种子的 150 张随机地图，八算法对照独立参考并检查路径', () => {
+test('固定种子的 150 张随机地图，十四算法对照独立参考并检查路径', () => {
   const random = randomSource(20261018);
   for (let i = 0; i < 150; i++) {
     const rows = 2 + random() % 12, cols = 2 + random() % 13;

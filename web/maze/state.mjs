@@ -68,3 +68,27 @@ export function compareSummaries(left, right) {
     visitedDelta: left.visitedCount - right.visitedCount,
     explorationReduction: right.visitedCount ? (1 - left.visitedCount / right.visitedCount) * 100 : null };
 }
+export class PairPlayback {
+  constructor(size,rate=100) { this.left=new MazePlayback(size,rate);this.right=new MazePlayback(size,rate);this.rate=rate;this.index=0;this.remainder=0;this.state='idle'; }
+  get result() {return this.left.result&&this.right.result?this.left.result:null;}
+  get total() {return Math.max(this.left.result?.visitedCount??0,this.right.result?.visitedCount??0);}
+  load(left,right,play=false) {this.left.load(left,false);this.right.load(right,false);this.rewind(play);}
+  rewind(play=false) {
+    this.left.rewind(false);this.right.rewind(false);this.index=0;this.remainder=0;
+    this.state=!this.result?'idle':!this.total?'completed':play?'playing':'paused';this.syncStates();
+  }
+  syncStates() {for(const p of [this.left,this.right])if(p.result&&p.state!=='completed')p.state=this.state==='playing'?'playing':'paused';}
+  toggle() {if(!this.result||this.state==='completed')return;this.state=this.state==='playing'?'paused':'playing';this.syncStates();}
+  advance(count) {
+    if(!this.result)return;const end=Math.min(this.total,this.index+count);
+    this.left.advance(Math.max(0,end-this.left.index));this.right.advance(Math.max(0,end-this.right.index));this.index=end;
+    if(this.index===this.total){this.state='completed';this.remainder=0;}this.syncStates();
+  }
+  step() {if(!this.result)return;this.state='paused';this.advance(1);}
+  finish() {this.advance(this.total-this.index);}
+  update(seconds) {if(this.state!=='playing'||!Number.isFinite(seconds)||seconds<0)return;const value=seconds*this.rate+this.remainder;this.remainder=value-Math.floor(value);this.advance(Math.floor(value));}
+}
+export function stageHeight(viewportHeight,top,footerHeight) {
+  return Math.max(200,Math.min(850,Math.floor(viewportHeight-top-footerHeight-12)));
+}
+export function menuOffset(left,width,viewportWidth) {return Math.max(8,Math.min(left,viewportWidth-width-8))-left;}

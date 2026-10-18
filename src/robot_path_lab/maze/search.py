@@ -1,4 +1,4 @@
-"""Eight explicit search strategies, yielding cells without animation or I/O."""
+"""Fourteen search strategies with measured work; no animation or I/O."""
 from array import array
 from collections import deque
 from dataclasses import dataclass
@@ -6,6 +6,7 @@ from heapq import heappop, heappush
 from math import inf
 
 from .model import Maze
+from .trace import SearchTrace
 
 CORE_ALGORITHMS = ("bfs", "dijkstra", "astar", "dfs", "greedy", "bibfs", "bidijkstra", "weighted")
 ALGORITHMS = CORE_ALGORITHMS + ("spfa", "bellmanford", "iddfs", "idastar", "beam", "bigreedy")
@@ -21,6 +22,13 @@ class MazeSearchResult:
     total_cost: int | None
     status: str = "unreachable"
     reason: str = ""
+    expansion_count: int = 0
+    repeat_expansion_count: int = 0
+    max_frontier_size: int | None = None
+    edge_scans: int = 0
+    work_count: int = 0
+    visited_g: tuple[int, ...] = ()
+    visited_frontier: tuple[int, ...] = ()
 
     @property
     def visited_count(self):
@@ -50,6 +58,7 @@ def _result(path, visits, sides):
 
 
 def _single(m, algorithm):
+    trace = SearchTrace(m, algorithm)
     n = len(m.walls)
     parents, scores, marked = array("i", [-2]) * n, array("d", [inf]) * n, bytearray(n)
     visits, sides, queue, heap = array("I"), bytearray(), deque(), []
@@ -63,6 +72,7 @@ def _single(m, algorithm):
         queue.append(m.start_id)
     else:
         heappush(heap, (priority(m.start_id, 0), sequence, m.start_id, 0))
+    trace.observe(1)
     while queue if linear else heap:
         if linear:
             cell = queue.pop() if algorithm == "dfs" else queue.popleft()
@@ -70,17 +80,19 @@ def _single(m, algorithm):
             _, _, cell, old_g = heappop(heap)
             if old_g != scores[cell]:
                 continue
+        trace.expand(cell, scores[cell], len(queue) if linear else len(heap))
         if not marked[cell]:
             marked[cell] = 1
             visits.append(cell)
             sides.append(1)
             yield (cell, 1)
         if cell == m.goal_id:
-            return _result(list(reversed(_chain(parents, cell))), visits, sides)
+            return trace.finish(_result(list(reversed(_chain(parents, cell))), visits, sides))
         adjacent = list(neighbors(m, cell))
         if algorithm == "dfs":
             adjacent.reverse()
         for next_cell in adjacent:
+            trace.edge_scans += 1
             g = scores[cell] + 1
             if linear or algorithm == "greedy":
                 if parents[next_cell] != -2:
@@ -93,16 +105,21 @@ def _single(m, algorithm):
             else:
                 sequence += 1
                 heappush(heap, (priority(next_cell, g), sequence, next_cell, g))
-    return _result([], visits, sides)
+            trace.observe(len(queue) if linear else len(heap))
+    return trace.finish(_result([], visits, sides))
 
 
 def _bidirectional(m, algorithm):
+    trace = SearchTrace(m, algorithm)
     n = len(m.walls)
     distances = [array("d", [inf]) * n for _ in range(2)]
     parents = [array("i", [-1]) * n for _ in range(2)]
     queues = [deque([m.start_id]), deque([m.goal_id])]
     heaps = [[(0, 0, m.start_id)], [(0, 0, m.goal_id)]]
     use_heap = algorithm == "bidijkstra"
+    trace.observe(2)
+    def frontier_size():
+        return sum(map(len, heaps if use_heap else queues))
     distances[0][m.start_id] = distances[1][m.goal_id] = 0
     visits, sides, marked = array("I"), bytearray(), bytearray(n)
     best, meeting, sequence = inf, -1, 0
@@ -119,6 +136,7 @@ def _bidirectional(m, algorithm):
         side = 0 if a <= b else 1
         other = 1 - side
         cell = heappop(heaps[side])[2] if use_heap else queues[side].popleft()
+        trace.expand(cell, distances[side][cell], frontier_size())
         if not marked[cell]:
             marked[cell] = 1
             visits.append(cell)
@@ -127,6 +145,7 @@ def _bidirectional(m, algorithm):
         if distances[side][cell] + distances[other][cell] < best:
             best, meeting = distances[side][cell] + distances[other][cell], cell
         for next_cell in neighbors(m, cell):
+            trace.edge_scans += 1
             candidate = distances[side][cell] + 1
             if candidate < distances[side][next_cell]:
                 distances[side][next_cell], parents[side][next_cell] = candidate, cell
@@ -135,11 +154,12 @@ def _bidirectional(m, algorithm):
                     heappush(heaps[side], (candidate, sequence, next_cell))
                 else:
                     queues[side].append(next_cell)
+                trace.observe(frontier_size())
             connection = distances[side][next_cell] + distances[other][next_cell]
             if connection < best:
                 best, meeting = connection, next_cell
     path = [] if meeting < 0 else list(reversed(_chain(parents[0], meeting))) + _chain(parents[1], meeting)[1:]
-    return _result(path, visits, sides)
+    return trace.finish(_result(path, visits, sides))
 
 
 def iter_search(maze: Maze, algorithm="astar", **options):

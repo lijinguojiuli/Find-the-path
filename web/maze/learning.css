@@ -1,0 +1,134 @@
+/* Readable controls; stage heights are measured from the remaining viewport. */
+:root {font-size:14px;}
+body {font-size:14px;line-height:1.5;}
+button,input,select,.header-actions a {font-size:14px;}
+button,.header-actions a {min-height:36px;padding:7px 11px;}
+.shell {max-width:1700px;padding:0 16px;}
+header,.large header {height:62px;}
+.brand {font-size:18px;}.brand small {font-size:12px;letter-spacing:.5px;}
+.header-actions button {font-size:14px;}
+.generator summary {font-size:14px;min-height:40px;padding:8px 12px;}
+.generator .hint,.hint {font-size:12px;}
+.generator h2 {font-size:15px;}.generator form label {font-size:13px;}
+.scenario-bar {display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 12px;}
+.scenario-bar label {font-size:14px;color:#43675e;}
+.scenario-bar select {max-width:100%;font-size:14px;}
+.scenario-bar p {flex:1;min-width:180px;font-size:13px;margin:0;color:#617b70;}
+.layout,.large .layout {grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start;}
+.workspace {overflow:visible;min-width:0;}
+.workspace-title {display:none;}
+.mode-tabs {border-radius:12px 12px 0 0;padding:5px 10px;min-height:44px;}
+.mode-tabs button {font-size:15px;min-height:34px;padding:5px 10px;}
+#compact-meta {font-size:12px;}
+.controls,.playbar,.viewbar {gap:8px;padding:8px 12px;flex-wrap:wrap;}
+.controls label,.playbar label,.viewbar label {font-size:14px;}
+.controls button,.playbar button,.viewbar button {font-size:14px;padding:5px 10px;min-height:34px;}
+#algorithm,#reference {font-size:14px;min-height:36px;min-width:155px;max-width:230px;}
+.playbar input {width:100px;}.playbar output {font-size:12px;min-width:88px;}
+.algorithm-note {display:none;}
+.viewbar {background:#f7faf8;border-top:1px solid #edf1ec;}
+.viewbar output {font-size:13px;}
+.menu {position:relative;font-size:14px;}
+.menu>summary {cursor:pointer;list-style:none;border:1px solid #d6e2d9;background:white;border-radius:8px;padding:6px 10px;min-height:34px;}
+.menu[open]>summary {background:#e6f3eb;}
+.menu-content {position:absolute;z-index:20;top:calc(100% + 5px);left:0;display:flex;flex-direction:column;gap:8px;min-width:190px;padding:12px;background:white;border:1px solid #ccddd1;border-radius:10px;box-shadow:0 10px 30px #1b413320;}
+.menu-content button {text-align:left;}
+.view-options {width:260px;max-width:calc(100vw - 40px);}
+.view-options label {display:flex;align-items:center;gap:6px;font-size:14px;}
+.view-options input[type=range] {width:100%;}
+.view-options input[type=checkbox] {min-height:0;}
+#effect-quality {font-size:12px;color:#6a8276;}
+.viewport,.large .viewport {height:320px;min-height:200px;max-height:none;}
+.sync-hint {font-size:12px;color:#6b8278;}
+.comparing .playbar,.comparing .viewbar {display:flex;}
+.comparing .viewbar #fit {display:none;}
+.comparing .generator,.comparing .scenario-bar p,.comparing .viewbar .sync-hint {display:none;}
+.comparing #playback-progress {display:block;}
+.pair-only {display:none;}.comparing .pair-only {display:inline-block;}
+.inspector {border-top:1px solid #e0e9e2;background:#f1f8f3;}
+.inspector:not([open]) {display:none;}
+.inspector>summary {cursor:pointer;font-size:14px;padding:8px 12px;color:#0b7668;}
+.inspector-body {padding:0 12px 12px;max-height:240px;overflow:auto;}
+.inspector-body p {font-size:13px;margin:8px 0;line-height:1.7;}
+.score-grid {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;}
+.score-grid>span {font-size:12px;background:white;border:1px solid #dfebe1;border-radius:7px;padding:6px;text-align:center;color:#648074;}
+.score-grid strong {display:block;font-size:16px;font-weight:650;color:#234d40;}
+.frontier-preview {display:flex;gap:6px;flex-wrap:wrap;list-style:none;padding:0;margin:8px 0;}
+.frontier-preview li {font-size:13px;border:1px solid #c5dfce;border-radius:6px;background:#fff;padding:3px 7px;}
+#compare-stage {height:360px;min-height:200px;max-height:none;overflow:auto;padding:12px;}
+.pair-tools {display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-size:13px;}
+.pair-tools label {display:flex;align-items:center;gap:5px;}
+.pair-tools input[type=checkbox] {min-height:0;}
+.pair-tools>span {color:#688075;font-size:12px;}
+.pair-grid {gap:12px;grid-template-columns:1fr 1fr;}
+.pair-grid h3 {font-size:16px;padding:12px 12px 0;}
+.pair-grid p {font-size:12px;line-height:1.6;min-height:40px;margin:6px 12px 10px;}
+.pair-grid p {white-space:pre-line;}
+.pair-grid canvas {height:230px;cursor:crosshair;}
+.pair-legend {display:flex;flex-wrap:wrap;gap:12px;font-size:12px;padding:10px 0;color:#55796b;}
+.difference-card h3,.comparison-bars h3 {font-size:15px;}
+.difference-card p {font-size:14px;line-height:1.8;}
+#strategy-summary {font-size:13px;color:#5f796c;}
+.comparison-bars .card-title {flex-wrap:wrap;}
+.comparison-bars .hint {font-size:12px;line-height:1.7;}
+#bar-metric {font-size:13px;}
+.bar-row {grid-template-columns:145px minmax(40px,1fr) 100px;font-size:13px;gap:10px;}
+.bar-row>span:last-child {font-size:12px;}
+.bar-track {height:9px;}
+.excluded-results {font-size:13px;color:#765f44;background:#fbf7ec;border-radius:8px;padding:10px;margin-top:12px;}
+.excluded-results:empty {display:none;}
+.excluded-results {white-space:pre-line;}
+.all-results {margin-top:14px;padding:12px;background:white;border:1px solid #dce7df;border-radius:10px;}
+.all-results summary {font-size:14px;cursor:pointer;}
+.table-wrap {overflow:auto;max-width:100%;margin-top:10px;}
+table {font-size:13px;min-width:720px;}th {font-size:12px;font-weight:500;}td {padding:10px 7px;}td button {font-size:13px;min-height:28px;white-space:normal;}
+.tag {font-size:11px;}
+.legend {font-size:12px;gap:10px;padding:7px 12px;}
+.status {font-size:13px;line-height:1.6;min-height:0;}
+#playback-progress {font-size:12px;padding:5px 12px;line-height:1.5;}
+.progress {height:3px;}
+.overview {display:block;}
+.card-title h2,.catalogue h2 {font-size:16px;}.card-title>span {font-size:12px;}
+.catalogue details {padding:8px 0;border-top:1px solid #edf1ec;}
+.catalogue summary {font-size:14px;cursor:pointer;}
+.algorithm-card {font-size:13px;line-height:1.7;margin-top:8px;padding:8px;background:#f5f9f6;border-radius:8px;}
+.algorithm-card strong {font-size:14px;color:#1c6552;}.algorithm-card p {margin:4px 0;}
+#study-results {margin-top:14px;padding:12px;border-radius:10px;background:white;}
+#study-results h3 {font-size:15px;}
+.large .scenario-bar {display:none;}.large .mode-tabs {display:flex;}
+.large aside {max-height:none;overflow:visible;}
+.large .generator {display:none;}
+dialog {width:min(600px,calc(100% - 24px));}dialog ol {font-size:14px;line-height:1.8;}dialog p {font-size:14px;}
+footer {font-size:12px;}
+@media(max-width:1100px){
+  .layout,.large .layout {grid-template-columns:1fr;}
+  aside {display:grid;grid-template-columns:minmax(180px,1fr) 2fr;align-items:start;}
+  .overview {display:block;}
+  .catalogue {min-width:0;}
+}
+@media(max-width:680px){
+  .shell,.large .shell {padding:0 8px;}
+  header,.large header {height:58px;gap:8px;}
+  .brand {font-size:16px;}.brand small {font-size:11px;}.brand-mark {width:32px;height:32px;}
+  .header-actions {gap:5px;}.header-actions button {font-size:13px;padding:5px 8px;}
+  .generator summary {font-size:13px;}
+  .scenario-bar {gap:7px;}.scenario-bar p {flex-basis:100%;font-size:13px;}
+  .scenario-bar button {font-size:13px;}
+  #compact-meta {display:none;}
+  .mode-tabs button {font-size:14px;}
+  .controls,.playbar,.viewbar {padding:6px 9px;gap:6px;}
+  #algorithm,#reference {min-width:130px;max-width:175px;font-size:13px;}
+  .controls button,.playbar button,.viewbar button {font-size:13px;}
+  .playbar input {width:80px;}.playbar output {font-size:12px;min-width:75px;}
+  .menu>summary {font-size:13px;}
+  .menu-content {min-width:165px;}
+  .score-grid {grid-template-columns:repeat(3,minmax(0,1fr));}
+  .score-grid strong {font-size:15px;}
+  .pair-grid {gap:8px;}
+  .pair-grid h3 {font-size:14px;}.pair-grid p {font-size:12px;min-height:58px;}
+  .pair-grid canvas {height:200px;}
+  .pair-legend {font-size:12px;gap:8px;}
+  .bar-row {grid-template-columns:120px minmax(20px,1fr) 85px;font-size:12px;gap:6px;}
+  aside {grid-template-columns:1fr;}.overview #minimap {max-height:180px;object-fit:contain;}
+  .sync-hint {flex-basis:100%;font-size:12px;}
+}

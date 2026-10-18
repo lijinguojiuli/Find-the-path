@@ -22,12 +22,12 @@ test('动画暂停、继续、单步、完成、重播和分数时间', () => {
   p.rewind(); assert.equal(p.index, 0); assert.equal(p.mask.some(Boolean), false); assert.equal(p.pathMask.some(Boolean), false);
   p.step(); assert.equal(p.index, 1); p.load(result); assert.equal(p.index, 0);
 });
-test('缓存最多保留两份轨迹，统计保留八种，读取更新最近使用顺序', () => {
+test('缓存最多保留两份轨迹，十四种统计均保留，读取更新最近使用顺序', () => {
   const cache = new ResultCache();
-  for (let i = 0; i < 8; i++) cache.put(String(i), { i }, { i });
-  assert.equal(cache.results.size, 2); assert.equal(cache.summaries.size, 8);
-  assert.equal(cache.get('0'), undefined); cache.get('6'); cache.put('8', {}, {});
-  assert.ok(cache.get('6')); assert.equal(cache.get('7'), undefined);
+  for (let i = 0; i < 14; i++) cache.put(String(i), { i }, { i });
+  assert.equal(cache.results.size, 2); assert.equal(cache.summaries.size, 14);
+  assert.equal(cache.get('0'), undefined); cache.get('12'); cache.put('14', {}, {});
+  assert.ok(cache.get('12')); assert.equal(cache.get('13'), undefined);
   cache.clear(); assert.equal(cache.results.size, 0); assert.equal(cache.summaries.size, 0);
 });
 test('小地图定位边界安全，矩形地图坐标正确', () => {
@@ -42,7 +42,7 @@ test('计时仅调用两次时钟，排除快照、动画、消息和地图生�
   assert.equal(calls, 2); assert.equal(value.summary.elapsedMs, 12.5);
   assert.equal(value.summary.totalCost, value.result.path.length - 1);
 });
-test('Worker 生成、八算法顺序对比、结果缓冲与错误协议', () => {
+test('Worker 生成、十四算法顺序对比、结果缓冲与错误协议', () => {
   const messages = [], emit = m => messages.push(m);
   executeRequest({ id: 1, version: 3, kind: 'generate', options: { rows: 11, cols: 11 } }, emit);
   const map = messages[0].map; assert.equal(map.version, 3); assert.equal(messages[0].kind, 'map');
