@@ -33,6 +33,16 @@ def test_browser_module_has_javascript_mime_type(website_url):
         assert response.headers.get_content_type() == "text/javascript"
 
 
+def test_independent_maze_page_and_worker_are_served(website_url):
+    with urlopen(f"{website_url}/maze/", timeout=5) as response:
+        page = response.read().decode("utf-8")
+        assert 'lang="zh-CN"' in page and "1001" in page and "新手教程" in page
+    with urlopen(f"{website_url}/maze/worker.mjs", timeout=5) as response:
+        assert response.headers.get_content_type() == "text/javascript"
+    with urlopen(website_url, timeout=5) as response:
+        assert 'href="./maze/"' in response.read().decode("utf-8")
+
+
 def test_project_files_outside_web_directory_are_not_served(website_url):
     with pytest.raises(HTTPError) as error:
         urlopen(f"{website_url}/../AGENTS.md", timeout=5)

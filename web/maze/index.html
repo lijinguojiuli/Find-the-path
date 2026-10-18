@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#087f73">
+  <meta name="description" content="独立大型迷宫演示：最高1001×1001，同图观察八种寻路算法，支持随机种子、小地图与搜索动画。">
+  <title>大型迷宫 · 寻路实验室</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23087f73'/%3E%3Cpath d='M10 29V10h20v19H20V20' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<div class="shell">
+  <header><a class="brand" href="../"><span class="brand-mark">↱</span><span>寻路实验室<small>独立迷宫演示</small></span></a><div class="header-actions"><a href="../" class="quiet">返回实验台</a><button id="help">新手教程 <kbd>H</kbd></button><button id="large" title="扩大网页布局，保留底部系统任务栏" aria-pressed="false">大屏模式 <kbd>F</kbd></button></div></header>
+  <section class="heading"><div><div class="eyebrow">大型迷宫 · 八种探索方式</div><h1>地图很大，<span>每一步都看得清。</span></h1><p>从起点到终点，在同一张迷宫里，观察不同算法如何选择下一步。</p></div><span class="size-badge">最高 1001 × 1001</span></section>
+  <section class="generator card" aria-labelledby="generator-title"><h2 id="generator-title">先选一张迷宫</h2><form id="generate-form">
+    <label>类型<select id="maze-type"><option value="braided">带环路 · 多条路线</option><option value="corridors">长走廊 · 深入探索</option><option value="branches">多分支 · 四处分岔</option></select></label>
+    <label>尺寸预设<select id="preset"><option value="301">301 × 301</option><option value="51">51 × 51</option><option value="101">101 × 101</option><option value="501">501 × 501</option><option value="1001">1001 × 1001</option><option value="custom">自定义</option></select></label>
+    <label>行数<input id="rows" type="number" min="11" max="1001" step="2" value="301" required></label><span class="times">×</span><label>列数<input id="cols" type="number" min="11" max="1001" step="2" value="301" required></label>
+    <label>随机种子<input id="seed" type="number" min="0" max="4294967295" step="1" value="20261018" required></label>
+    <button class="primary" type="submit">生成迷宫</button><button id="random" type="button">换个随机种子</button><button id="example" type="button" class="quiet">31×31 教学示例</button>
+  </form><p class="hint">相同类型、尺寸和种子可以复现同一张地图。行列须为 11–1001 的奇数；大地图可以滚动浏览。</p><p id="form-error" class="error" role="alert"></p></section>
+  <main class="layout">
+    <section class="workspace card" aria-label="迷宫搜索演示">
+      <div class="workspace-title"><div><span class="eyebrow">同一地图 · 切换算法</span><h2 id="map-title">正在准备迷宫</h2></div><span id="map-meta" class="muted"></span></div>
+      <div class="controls"><label for="algorithm">探索算法</label><select id="algorithm"></select><button id="run" class="primary">开始搜索</button><button id="compare">比较八种算法</button><button id="cancel" class="quiet" disabled>取消计算</button></div>
+      <p id="algorithm-note" class="algorithm-note"></p>
+      <div class="playbar"><button id="pause" disabled>暂停</button><button id="step" disabled>单步</button><button id="reset" disabled>重置播放</button><button id="replay" disabled>重播</button><button id="finish" disabled>直接看结果</button><label for="speed">播放速度</label><input id="speed" type="range" min="0" max="6" step="0.1" value="4.3"><output id="speed-label"></output></div>
+      <div class="viewbar"><label for="zoom">格子大小</label><input id="zoom" type="range" min="16" max="48" step="2" value="28"><output id="zoom-label">28 像素</output><button id="locate-start" class="quiet">定位起点</button><button id="locate-goal" class="quiet">定位终点</button><span class="muted">滚轮上下 · Shift+滚轮左右</span></div>
+      <div id="viewport" class="viewport" tabindex="0" aria-label="可滚动的迷宫地图，可使用滚动条和方向键"><div id="spacer" class="spacer"><canvas id="maze-canvas" role="img" aria-label="迷宫局部视图，绿色为起点，珊瑚色为终点，金色为最终路径"></canvas></div></div>
+      <div class="legend"><span><i class="wall"></i>墙体</span><span><i class="open"></i>未探索</span><span><i class="forward"></i>起点侧探索</span><span><i class="backward"></i>终点侧探索</span><span><i class="route"></i>最终路径</span><span><i class="start"></i>起点</span><span><i class="goal"></i>终点</span></div>
+      <div class="status" id="status" role="status" aria-live="polite">正在生成默认迷宫……</div><div class="progress"><span id="progress-fill"></span></div><p id="playback-progress" class="hint">搜索完成后，可按访问顺序观察动画。</p>
+    </section>
+    <aside>
+      <section class="card overview"><div class="card-title"><h2>整张迷宫</h2><span class="muted">点击定位</span></div><canvas id="minimap" width="320" height="320" tabindex="0" role="button" aria-label="迷宫小地图。点击位置定位，Enter 定位终点，Home 定位起点"></canvas><p id="generation-time" class="hint">白色框表示当前可见区域。</p></section>
+      <section class="card results"><div class="card-title"><h2>同图比较</h2><span>四方向 · 每步成本 1</span></div><div class="table-wrap"><table><thead><tr><th>算法</th><th>步数/成本</th><th>探索格子</th><th>耗时/ms</th></tr></thead><tbody id="results"></tbody></table></div><p class="hint">点击算法名称切换展示。时间只包含算法计算，排除地图生成、动画和绘制；一次结果不能代表算法总是更快。</p></section>
+      <section class="card guide"><span class="eyebrow">为什么走法不同？</span><h2>先看顺序，再看路线</h2><ol><li>从教学示例开始，选择 A* 并搜索。</li><li>点击「暂停」，用「单步」观察一个新节点。</li><li>点击「直接看结果」，金色路线连起起终点。</li><li>比较八种算法，再点击表格里的算法名称。</li></ol><p>DFS、贪心和加权 A* 不保证最短。树形迷宫往往只有一条路线；切换「带环路」更容易看出路线差异。</p></section>
+    </aside>
+  </main><footer>独立迷宫演示 · 原实验台保留地图编辑、机器人移动与动态重新规划。</footer>
+</div>
+<dialog id="tutorial" aria-labelledby="tutorial-title"><button id="close-help" class="close" aria-label="关闭教程">×</button><span class="eyebrow">从第一步开始</span><h2 id="tutorial-title">这么大的迷宫，怎么玩？</h2><ol><li><strong>先用小地图练习。</strong>载入 31×31 教学迷宫，绿色是起点，珊瑚色是终点。</li><li><strong>观察算法。</strong>选好算法，点击「开始搜索」，蓝色节点按访问顺序出现。</li><li><strong>控制播放。</strong>暂停后单步，或直接看金色路径；速度滑块只改变动画。</li><li><strong>挑战大迷宫。</strong>生成 301 或 1001 的地图，用右侧小地图、定位按钮和滚动条浏览。切换算法不会换图。</li></ol><p>「大屏模式」扩大网页布局，保留底部系统任务栏。空格暂停/继续，F 切换大屏，H 打开教程。</p><button id="tutorial-example" class="primary">载入教学迷宫</button><button id="keep-map">保留当前地图，开始探索</button></dialog>
+<script type="module" src="./app.mjs"></script>
+</body></html>

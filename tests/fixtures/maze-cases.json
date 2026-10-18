@@ -1,0 +1,10 @@
+[
+  {"name":"empty","cells":["....","....","...."],"start":[0,0],"goal":[3,2]},
+  {"name":"detour","cells":[".......",".#####.",".....#.","####.#.","......."],"start":[0,0],"goal":[6,4]},
+  {"name":"unreachable","cells":["...","###","..."],"start":[0,0],"goal":[2,2]},
+  {"name":"same","cells":["."],"start":[0,0],"goal":[0,0]},
+  {"name":"row","cells":["......."],"start":[6,0],"goal":[0,0]},
+  {"name":"column","cells":[".",".",".","."],"start":[0,3],"goal":[0,0]},
+  {"name":"no_diagonal","cells":[".#","#."],"start":[0,0],"goal":[1,1]},
+  {"name":"multiple_routes","cells":[".....",".#.#.",".....",".#.#.","....."],"start":[0,2],"goal":[4,2]}
+]
