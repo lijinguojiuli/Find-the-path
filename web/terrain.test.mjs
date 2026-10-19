@@ -18,9 +18,10 @@ test('成本计入终点而不计起点，同起终点成本为零', () => {
     assert.equal(searchGrid(same, algorithm).totalCost, 0);
   }
 });
-test('地形工具、端点、障碍拒绝、清除与快照恢复', () => {
+test('地形画笔覆盖障碍、端点成本、清除与快照恢复', () => {
   const grid = new Grid(2, 3, { start: [0, 0], goal: [2, 1], obstacles: [[1, 0]] });
-  assert.equal(applyEdit(grid, MODES.terrain, [1, 0]).changed, false);
+  assert.equal(applyEdit(grid, MODES.terrain, [1, 0]).changed, true);
+  assert.equal(grid.isBlocked([1, 0]), false);assert.equal(grid.costAt([1, 0]), 5);
   assert.equal(applyEdit(grid, MODES.terrain, [0, 0]).changed, true);
   assert.equal(grid.costAt([0, 0]), 5);
   assert.equal(applyEdit(grid, MODES.terrain, [0, 0]).changed, false);

@@ -1,5 +1,5 @@
 import { Grid, MODES, applyEdit, applyObstacleEdit, cellFromPoint, createDemoGrid, validDimensions } from './model.mjs';
-import { ObstacleStroke } from './obstacle-stroke.mjs';
+import { PaintStroke, PAINT_MODES } from './obstacle-stroke.mjs';
 import { LESSON_STEPS, newLesson, advanceLesson } from './lesson.mjs';
 import { SearchPlayback } from './playback.mjs';
 import { ALGORITHMS } from './search.mjs';
@@ -21,6 +21,9 @@ let immersive = false;
 let controlsWereOpen = true;
 let cellSize = 28;
 const obstacleHint = '障碍物：按住左键拖动布置；从障碍上拖动擦除，一次撤销恢复整笔';
+const paintNames = {[MODES.obstacle]:'障碍物',[MODES.terrain]:'高成本地形',[MODES.plain]:'普通地面'};
+const paintHints = {[MODES.obstacle]:obstacleHint,[MODES.terrain]:'高成本：按住左键连续涂抹，可直接覆盖障碍；一次撤销恢复整笔',[MODES.plain]:'普通地面：按住左键连续涂抹，清除障碍和高成本；一次撤销恢复整笔'};
+const editingHint = () => paintHints[mode]??'选择工具，然后在地图上点一下';
 const history = [];
 let activeStroke = null;
 const canvas = $('grid-canvas');
@@ -144,7 +147,7 @@ function hasSeenWelcome() { try { return localStorage.getItem('path-lab-welcome-
 function chooseMode(next, announce = true) {
   finishStroke();
   mode = next;
-  if(!lesson.active)$('board-hint').textContent=mode===MODES.obstacle?obstacleHint:'选择工具，然后在地图上点一下';
+  if(!lesson.active)$('board-hint').textContent=editingHint();
   for (const button of document.querySelectorAll('[data-mode]')) {
     const active = button.dataset.mode === mode;
     button.classList.toggle('active', active);
@@ -154,8 +157,8 @@ function chooseMode(next, announce = true) {
     const tips = { obstacle: '障碍物工具：按住左键拖动连续布置；从障碍上按下可连续擦除，撤销可恢复整笔。',
       start: '起点工具：在一块新的空地上点一下，把绿色起点移过去。',
       goal: '终点工具：在一块新的空地上点一下，把珊瑚色终点移过去。',
-      terrain: '高成本工具：点击可通行格，进入该格的成本设为 5。',
-      plain: '普通地面工具：点击可通行格，将进入成本恢复为 1。' };
+      terrain: '高成本工具：按住左键拖动连续涂抹，障碍会直接替换为成本 5 的地形。',
+      plain: '普通地面工具：按住左键拖动连续涂抹，清除障碍和高成本，恢复成本 1。' };
     setStatus(tips[mode]);
   }
   draw();
@@ -188,11 +191,11 @@ function refresh() {
   } else if (lesson.step === LESSON_STEPS.length) {
     $('coach').textContent = '太棒了，四步全部完成！现在可以自由布置地图，给机器人留一条通道。';
     $('lesson-button').textContent = '再学一遍';
-    $('board-hint').textContent = mode===MODES.obstacle?obstacleHint:'选择工具，然后在地图上点一下';
+    $('board-hint').textContent = editingHint();
   } else {
     $('coach').textContent = '点击下方按钮，开始一次手把手的练习。';
     $('lesson-button').textContent = '开始动手教程 →';
-    $('board-hint').textContent = mode===MODES.obstacle?obstacleHint:'选择工具，然后在地图上点一下';
+    $('board-hint').textContent = editingHint();
   }
   draw();
 }
@@ -347,7 +350,7 @@ function finishStroke() {
   if(!activeStroke)return;
   const session=activeStroke;activeStroke=null;session.path.end();
   if(canvas.hasPointerCapture(session.pointerId))canvas.releasePointerCapture(session.pointerId);
-  if(session.historySaved&&!robot)setStatus('本笔障碍编辑已结束，点击撤销可一次恢复整笔。');
+  if(session.historySaved&&!robot)setStatus(`本笔${paintNames[session.path.mode]}编辑已结束，点击撤销可一次恢复整笔。`);
 }
 function paintStroke(cell) {
   const session=activeStroke;if(!session)return false;
@@ -358,7 +361,7 @@ function paintStroke(cell) {
   }
   if(changed){
     if(session.request)dispatchReplan(session.request);
-    else{renderMetrics();syncSearchControls();if(!robot)setStatus(`${session.path.blocked?'连续添加':'连续擦除'}障碍中，松开左键结束；一次撤销可恢复整笔。`);}
+    else{renderMetrics();syncSearchControls();if(!robot)setStatus(`${session.path.mode===MODES.obstacle?(session.path.blocked?'连续添加':'连续擦除')+'障碍':'连续涂抹'+paintNames[session.path.mode]}中，松开左键结束；一次撤销可恢复整笔。`);}
     refresh();
   }
   return changed;
@@ -369,9 +372,9 @@ canvas.addEventListener('pointerdown', event => {
   if (event.pointerType === 'touch') { touchStart = {id:event.pointerId,x:event.clientX,y:event.clientY};return; }
   finishStroke();
   const cell=pointerCell(event);
-  if(event.button!==0||mode!==MODES.obstacle||lesson.active||!cell){editAtPointer(event);return;}
+  if(event.button!==0||!PAINT_MODES.includes(mode)||lesson.active||!cell){editAtPointer(event);return;}
   event.preventDefault();canvas.focus({preventScroll:true});
-  activeStroke={pointerId:event.pointerId,path:new ObstacleStroke(grid,cell),historySaved:false,request:null};
+  activeStroke={pointerId:event.pointerId,path:new PaintStroke(grid,cell,mode),historySaved:false,request:null};
   canvas.setPointerCapture(event.pointerId);paintStroke(cell);
 });
 canvas.addEventListener('pointerup', event => {

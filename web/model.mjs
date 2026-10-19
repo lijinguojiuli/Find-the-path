@@ -83,11 +83,12 @@ export function applyEdit(grid, mode, cell) {
   if (!Object.values(MODES).includes(mode)) return unchanged('请先选择一个地图编辑工具。');
   const location = `第 ${cell[0] + 1} 列、第 ${cell[1] + 1} 行`;
   if (mode === MODES.terrain || mode === MODES.plain) {
-    if (grid.isBlocked(cell)) return unchanged('请先清除障碍，再设置地形。');
+    const wasBlocked = grid.isBlocked(cell);
     const cost = mode === MODES.terrain ? 5 : 1;
-    if (grid.costAt(cell) === cost) return unchanged('这里已经是该地形。');
+    if (!wasBlocked && grid.costAt(cell) === cost) return unchanged('这里已经是该地形。');
+    if (wasBlocked) grid.removeObstacle(cell);
     grid.setCost(cell, cost);
-    return { changed: true, action: 'terrain', cell, message: `已设置${cost === 5 ? '高成本地形（5）' : '普通地面（1）'}：${location}。` };
+    return { changed: true, action: 'terrain', cell, message: `${wasBlocked?'已将障碍替换为':'已设置'}${cost === 5 ? '高成本地形（5）' : '普通地面（1）'}：${location}。` };
   }
   if (mode === MODES.obstacle) {
     return applyObstacleEdit(grid, cell, !grid.isBlocked(cell));

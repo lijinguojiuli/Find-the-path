@@ -1,8 +1,11 @@
-// UI-free drag geometry. Mutation, robot protection and undo belong to callers.
-export class ObstacleStroke {
-  constructor(grid, origin) {
+// Shared UI-free brush geometry; mutation, robot protection and undo stay outside.
+import {MODES} from './model.mjs';
+export const PAINT_MODES=Object.freeze([MODES.obstacle,MODES.terrain,MODES.plain]);
+export class PaintStroke {
+  constructor(grid, origin, mode=MODES.obstacle) {
+    if(!PAINT_MODES.includes(mode))throw new Error('此工具不支持连续涂抹。');
     grid.requireCell(origin);
-    this.grid=grid;this.blocked=!grid.isBlocked(origin);
+    this.grid=grid;this.mode=mode;this.blocked=mode===MODES.obstacle?!grid.isBlocked(origin):null;
     this.seen=new Set();this.previous=null;this.active=true;
   }
   visit(cell) {
@@ -20,4 +23,8 @@ export class ObstacleStroke {
     this.previous=[...cell];return cells;
   }
   end(){this.active=false;this.previous=null;}
+}
+// Preserve the obstacle-specific API and all previous stroke regression tests.
+export class ObstacleStroke extends PaintStroke {
+  constructor(grid,origin){super(grid,origin,MODES.obstacle);}
 }
