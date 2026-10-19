@@ -68,11 +68,12 @@ function table(){
   }
   comparisonDirty=true;
 }
-function pauseAll(){for(const p of [playback,pairPlayback])if(p?.state==='playing')p.toggle();}
+function pauseAll(){for(const p of [playback,pairPlayback])if(p?.state==='playing')p.toggle();dirty=true;}
+function autoplayAllowed(){return !document.hidden&&!$('styles-dialog').open&&!$('tutorial').open;}
 function stopWorker(){worker?.terminate();worker=null;tasks.cancel();buttons();}
 function loadPair(){
   const left=cache.get(selected()),right=cache.get(reference());if(!left||!right)return false;
-  pairPlayback=new PairPlayback(maze.walls.length,rate());pairPlayback.load(left,right,false);overlap=pathOverlap(left,right,maze.walls.length);inspectorId=null;dirty=comparisonDirty=true;return true;
+  pairPlayback=new PairPlayback(maze.walls.length,rate());pairPlayback.load(left,right,autoplayAllowed());overlap=pathOverlap(left,right,maze.walls.length);inspectorId=null;dirty=comparisonDirty=true;return true;
 }
 function launch(kind,options){
   if(tasks.active)stopWorker();pauseAll();inspectorId=null;lastInspection=null;
@@ -87,9 +88,11 @@ function launch(kind,options){
       else if(data.kind==='progress')status(`${data.scenario?SCENARIOS[data.scenario].name+' · ':''}${ALGORITHMS[data.algorithm].name}${data.sample?`：样本 ${data.sample}/${data.total}`:'：准备实测'}……`);
       else if(['measurement','result'].includes(data.kind)){
         cache.put(data.algorithm,data.result,data.summary);table();
-        if(data.result&&data.algorithm===selected()){playback.load(data.result,data.kind==='result'&&!comparing&&!$('styles-dialog').open&&!document.hidden);resetMini();}
+        if(data.result&&data.algorithm===selected()){playback.load(data.result,data.kind==='result'&&!comparing&&autoplayAllowed());resetMini();}
         if(data.kind==='result')status(`${ALGORITHMS[selected()].name}：${stateName(data.result.status)}。单次计算 ${duration(data.summary.elapsedMs)} ms（含讲解记录）。${data.result.status==='limited'?data.result.reason:'可暂停或单步；多次实测请用对比实验。'}`);
-      }else if(data.kind==='done'){loadPair();status('实测完成。点击「同步播放」或「单步」，每步两边各展示一个首次探索格子。');}
+      }else if(data.kind==='done'){
+        loadPair();status(pairPlayback.state==='playing'?'实测完成，已自动开始同步播放。可暂停、单步或重播。':pairPlayback.state==='completed'?'实测完成，已显示最终结果。可重播或重新搜索。':'实测完成，当前保持暂停。点击「同步播放」继续，或用「单步」观察。');
+      }
       else if(data.kind==='study-result'){studyRows.push(data);renderStudy();}
       else if(data.kind==='study-done')status('多场景实验完成，各场景独立统计；当前地图和播放结果保持不变。');
       else if(data.kind==='error'){$('form-error').textContent=data.error;status(`任务未完成：${data.error}。当前地图已保留。`);}
@@ -153,7 +156,7 @@ function openCatalog(){
 function choose(){
   note();if(!maze)return;if(comparing){table();launch('pair');return;}
   if(tasks.active)stopWorker();pauseAll();inspectorId=null;lastInspection=null;playback=new MazePlayback(maze.walls.length,rate());resetMini();const result=cache.get(selected());
-  if(result){playback.load(result);status('正在重播缓存结果；地图与实测统计保持相同。');}else launch('search');table();buttons();dirty=true;
+  if(result){playback.load(result,autoplayAllowed());status('正在重播缓存结果；地图与实测统计保持相同。');}else launch('search');table();buttons();dirty=true;
 }
 function setFit(value){fit=value;document.body.classList.toggle('fit',fit);$('fit').textContent=fit?'完整地图 ✓':'放大查看';$('fit').setAttribute('aria-pressed',String(fit));if(fit)viewport.scrollLeft=viewport.scrollTop=0;dirty=true;}
 function view(){return fit?fitGeometry(maze.rows,maze.cols,Math.max(1,viewport.clientWidth),Math.max(1,viewport.clientHeight),Number($('zoom').value)):calculateViewport({rows:maze.rows,cols:maze.cols,width:Math.max(1,viewport.clientWidth),height:Math.max(1,viewport.clientHeight),cellSize:Number($('zoom').value),scrollLeft:viewport.scrollLeft,scrollTop:viewport.scrollTop});}
@@ -284,7 +287,7 @@ for(const id of ['settings','inspector'])$(id).addEventListener('toggle',()=>{la
 mini.onclick=e=>{if(maze){const r=mini.getBoundingClientRect();locate(minimapTarget(e.clientX-r.left,e.clientY-r.top,r.width,r.height,maze));}};
 mini.onkeydown=e=>{if(e.key==='Enter'&&maze){locate(maze.goal);e.preventDefault();}if(e.key==='Home'&&maze){locate(maze.start);e.preventDefault();}};
 function large(){const enabled=document.body.classList.toggle('large');$('large').setAttribute('aria-pressed',String(enabled));$('large').textContent=enabled?'退出大屏 F':'大屏模式 F';layoutDirty=dirty=true;}
-function help(){if(!$('tutorial').open)$('tutorial').showModal();}
+function help(){pauseAll();if(!$('tutorial').open)$('tutorial').showModal();}
 function closeHelp(){$('tutorial').close();try{localStorage.setItem('maze-tutorial-seen-v2','1');}catch{/* optional storage */}}
 $('large').onclick=large;$('help').onclick=help;$('close-help').onclick=closeHelp;$('tutorial-example').onclick=()=>{closeHelp();example();};$('keep-map').onclick=closeHelp;
 $('tutorial').addEventListener('cancel',()=>{try{localStorage.setItem('maze-tutorial-seen-v2','1');}catch{/* optional */}});

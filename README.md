@@ -179,7 +179,7 @@ Python 当前共 1047 项测试，包含固定种子随机地图、独立参考�
 pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供测试使用，运行时会清空。
 详见 [pytest 临时目录说明](https://docs.pytest.org/en/stable/how-to/tmp_path.html)。
 
-网页模型、搜索、播放、统计、地形、机器人、视图、重规划与迷宫提供 408 项 Node.js 原生测试：
+网页模型、搜索、播放、统计、地形、机器人、视图、重规划与迷宫提供 411 项 Node.js 原生测试：
 
 ```powershell
 node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs web/replanning.test.mjs web/search-worker.test.mjs web/audit.test.mjs

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Tasks, ResultCache, MazePlayback, minimapTarget, fitGeometry, compareSummaries } from './state.mjs';
-import { generateMaze } from './model.mjs';
+import { Tasks, ResultCache, MazePlayback, PairPlayback, minimapTarget, fitGeometry, compareSummaries } from './state.mjs';
+import { Maze,generateMaze } from './model.mjs';
 import { searchMaze } from './search.mjs';
 import { executeRequest, measure } from './worker.mjs';
 test('取消、重复请求和版本不匹配均拒绝旧结果', () => {
@@ -91,4 +91,23 @@ test('回归：普通搜索立即返回单次结果，对比实验仍采样五�
   assert.equal(summary.includesDetails,true);assert.ok(result.teachingFrames.length);assert.equal(summary.totalCost,result.path.length-1);
   const pair=[];executeRequest({id:12,version:6,kind:'pair',map,algorithm:'astar',reference:'bfs'},m=>pair.push(m));
   for(const item of pair.filter(m=>m.kind==='measurement')){assert.equal(item.summary.sampleCount,5);assert.equal(item.summary.warmupCount,1);assert.equal(item.summary.timingKind,'median');assert.equal(item.summary.includesDetails,false);}
+});
+for(const kind of ['pair','compare'])test(`回归：${kind}搜索结果加载后直接同步播放，无需再次点击播放`,()=>{
+  const map=generateMaze({rows:15,cols:25,version:12}),out=[];
+  executeRequest({id:21,version:12,kind,map,algorithm:'astar',reference:'bfs'},m=>out.push(m));
+  const left=out.find(m=>m.algorithm==='astar'&&m.result).result,right=out.find(m=>m.algorithm==='bfs'&&m.result).result;
+  const p=new PairPlayback(map.walls.length,100);p.load(left,right);
+  assert.equal(p.state,'playing');p.update(.1);assert.equal(p.index,10);assert.equal(p.left.index,10);assert.equal(p.right.index,10);
+  assert.ok(p.left.mask.some(Boolean));assert.ok(p.right.mask.some(Boolean));
+  p.toggle();p.update(10);assert.equal(p.index,10);p.step();assert.equal(p.index,11);assert.equal(p.state,'paused');
+  p.rewind();assert.equal(p.index,0);assert.equal(p.state,'paused');p.rewind(true);p.finish();assert.equal(p.state,'completed');
+  for(const id of left.path)assert.equal(p.left.pathMask[id],1);for(const id of right.path)assert.equal(p.right.pathMask[id],1);
+});
+test('显式暂停仍阻止自动推进，同起终点和不可达结果均能正确结束',()=>{
+  for(const map of [new Maze(1,1,{walls:[0],start:[0,0],goal:[0,0]}),new Maze(3,3,{walls:[0,0,0,1,1,1,0,0,0],start:[0,0],goal:[2,2]})]){
+    const a=searchMaze(map,'astar'),b=searchMaze(map,'bfs'),p=new PairPlayback(map.walls.length,100);
+    p.load(a,b,false);assert.equal(p.state,'paused');p.update(10);assert.equal(p.index,0);p.step();assert.equal(p.index,1);
+    p.finish();assert.equal(p.state,'completed');assert.equal(p.index,Math.max(a.visitedCount,b.visitedCount));
+    assert.equal(p.left.pathMask.some(Boolean),a.found);assert.equal(p.right.pathMask.some(Boolean),b.found);
+  }
 });

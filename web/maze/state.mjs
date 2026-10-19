@@ -72,7 +72,7 @@ export class PairPlayback {
   constructor(size,rate=100) { this.left=new MazePlayback(size,rate);this.right=new MazePlayback(size,rate);this.rate=rate;this.index=0;this.remainder=0;this.state='idle'; }
   get result() {return this.left.result&&this.right.result?this.left.result:null;}
   get total() {return Math.max(this.left.result?.visitedCount??0,this.right.result?.visitedCount??0);}
-  load(left,right,play=false) {this.left.load(left,false);this.right.load(right,false);this.rewind(play);}
+  load(left,right,play=true) {this.left.load(left,false);this.right.load(right,false);this.rewind(play);}
   rewind(play=false) {
     this.left.rewind(false);this.right.rewind(false);this.index=0;this.remainder=0;
     this.state=!this.result?'idle':!this.total?'completed':play?'playing':'paused';this.syncStates();
