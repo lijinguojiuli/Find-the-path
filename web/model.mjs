@@ -90,11 +90,7 @@ export function applyEdit(grid, mode, cell) {
     return { changed: true, action: 'terrain', cell, message: `已设置${cost === 5 ? '高成本地形（5）' : '普通地面（1）'}：${location}。` };
   }
   if (mode === MODES.obstacle) {
-    if (equal(cell, grid.start) || equal(cell, grid.goal)) return unchanged('起点和终点受到保护。请先把端点移到别处。');
-    const remove = grid.isBlocked(cell);
-    if (remove) grid.removeObstacle(cell); else grid.addObstacle(cell);
-    return { changed: true, action: remove ? 'remove' : 'add', cell,
-      message: `${remove ? '已清除' : '已添加'}障碍：${location}。` };
+    return applyObstacleEdit(grid, cell, !grid.isBlocked(cell));
   }
   if (grid.isBlocked(cell)) return unchanged('这里是障碍。请切换到「障碍物」工具，点一下清除后再设置端点。');
   const name = mode === MODES.start ? '起点' : '终点';
@@ -102,6 +98,18 @@ export function applyEdit(grid, mode, cell) {
   if (mode === MODES.start) grid.setStart(cell); else grid.setGoal(cell);
   return { changed: true, action: mode, cell,
     message: equal(grid.start, grid.goal) ? '起点与终点已重合，当前允许这种测试情况。' : `${name}已移到${location}。` };
+}
+
+// Explicit intent is idempotent: dragging over an existing wall must not toggle it.
+export function applyObstacleEdit(grid, cell, blocked) {
+  const unchanged = message => ({ changed:false, action:'none', message, cell });
+  if (!grid.inBounds(cell)) return unchanged('请点击网格里的格子，地图外不会发生修改。');
+  if (typeof blocked !== 'boolean') return unchanged('障碍编辑状态无效。');
+  if (equal(cell, grid.start) || equal(cell, grid.goal)) return unchanged('起点和终点受到保护。请先把端点移到别处。');
+  if (grid.isBlocked(cell) === blocked) return unchanged(blocked ? '这里已经是障碍。' : '这里已经是空地。');
+  if (blocked) grid.addObstacle(cell); else grid.removeObstacle(cell);
+  return { changed:true, action:blocked?'add':'remove', cell,
+    message:`${blocked?'已添加':'已清除'}障碍：第 ${cell[0]+1} 列、第 ${cell[1]+1} 行。` };
 }
 
 export function cellFromPoint(x, y, geometry, rows, cols) {

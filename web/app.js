@@ -1,4 +1,5 @@
-import { Grid, MODES, applyEdit, cellFromPoint, createDemoGrid, validDimensions } from './model.mjs';
+import { Grid, MODES, applyEdit, applyObstacleEdit, cellFromPoint, createDemoGrid, validDimensions } from './model.mjs';
+import { ObstacleStroke } from './obstacle-stroke.mjs';
 import { LESSON_STEPS, newLesson, advanceLesson } from './lesson.mjs';
 import { SearchPlayback } from './playback.mjs';
 import { ALGORITHMS } from './search.mjs';
@@ -19,7 +20,9 @@ let geometry = { left: 0, top: 0, size: 1 };
 let immersive = false;
 let controlsWereOpen = true;
 let cellSize = 28;
+const obstacleHint = '障碍物：按住左键拖动布置；从障碍上拖动擦除，一次撤销恢复整笔';
 const history = [];
+let activeStroke = null;
 const canvas = $('grid-canvas');
 const viewport = $('board-viewport');
 const ctx = canvas.getContext('2d');
@@ -73,8 +76,9 @@ function syncSearchControls() {
     ? `${labels[playback.state]} · ${playback.index}/${playback.result.visitedCount}` : robot
       ? robot.state === 'blocked' ? '旧路线已停止' : `路线保留 · 剩余 ${robot.remainingPath.length - 1} 步` : labels.idle;
 }
-function invalidateSearch() {
-  mapVersion++; requestId++; searching = false; playback.reset(); robot = null; planner = null; measurements = []; renderMetrics(); syncSearchControls();
+function invalidateSearch(refreshUI = true) {
+  mapVersion++; requestId++; searching = false; playback.reset(); robot = null; planner = null; measurements = [];
+  if(refreshUI){renderMetrics();syncSearchControls();}
 }
 searchWorker.onmessage = ({ data }) => {
   if (data.id !== requestId || data.version !== mapVersion) return;
@@ -109,20 +113,26 @@ function dispatchReplan(request) {
   syncSearchControls(); draw();
 }
 
-function editRobotObstacle(cell) {
-  const before = grid.snapshot();
-  const blocked = !grid.isBlocked(cell);
+function rememberEdit(before, beforeMode, beforeLesson, stroke) {
+  if(stroke?.historySaved)return;
+  history.push({map:before,mode:beforeMode,lesson:beforeLesson});
+  if(history.length>60)history.shift();
+  if(stroke)stroke.historySaved=true;
+}
+function editRobotObstacle(cell, { blocked:desired = null, stroke = null, deferUI = false } = {}) {
+  const blocked = desired ?? !grid.isBlocked(cell);
+  if(grid.isBlocked(cell)===blocked)return false;
+  const before = stroke?.historySaved ? null : grid.snapshot();
   let request;
   try { request = planner.changeObstacle(cell, blocked); }
-  catch (error) { setStatus(error.message, true); return; }
-  history.push({ map: before, mode, lesson: { ...lesson, target: lesson.target && [...lesson.target] } });
-  if (history.length > 60) history.shift();
-  mapVersion++; requestId++; searching = false; playback.reset(); measurements = []; renderMetrics();
-  if (request) dispatchReplan(request);
+  catch (error) { setStatus(error.message, true); return false; }
+  rememberEdit(before,mode,{...lesson,target:lesson.target&&[...lesson.target]},stroke);
+  mapVersion++; requestId++; searching = false; playback.reset(); measurements = [];if(!deferUI)renderMetrics();
+  if (request) {if(deferUI)stroke.request=request;else dispatchReplan(request);}
   else { setStatus(blocked ? '障碍已添加，没有影响剩余路径，机器人保持原状态。' : robot.state === 'blocked'
     ? '障碍已清除，机器人仍留在原格。点击「当前位置重规划」寻找新路线。'
-    : '障碍已清除，机器人与当前路线保留。需要更优路线可点「当前位置重规划」。'); syncSearchControls(); }
-  refresh();
+    : '障碍已清除，机器人与当前路线保留。需要更优路线可点「当前位置重规划」。'); if(!deferUI)syncSearchControls(); }
+  if(!deferUI)refresh();return true;
 }
 
 function setStatus(message, error = false) {
@@ -132,14 +142,16 @@ function setStatus(message, error = false) {
 function rememberWelcome() { try { localStorage.setItem('path-lab-welcome-v1', 'seen'); } catch {} }
 function hasSeenWelcome() { try { return localStorage.getItem('path-lab-welcome-v1') === 'seen'; } catch { return false; } }
 function chooseMode(next, announce = true) {
+  finishStroke();
   mode = next;
+  if(!lesson.active)$('board-hint').textContent=mode===MODES.obstacle?obstacleHint:'选择工具，然后在地图上点一下';
   for (const button of document.querySelectorAll('[data-mode]')) {
     const active = button.dataset.mode === mode;
     button.classList.toggle('active', active);
     button.setAttribute('aria-pressed', String(active));
   }
   if (announce) {
-    const tips = { obstacle: '障碍物工具：左键点击空地添加障碍，再点一次清除。',
+    const tips = { obstacle: '障碍物工具：按住左键拖动连续布置；从障碍上按下可连续擦除，撤销可恢复整笔。',
       start: '起点工具：在一块新的空地上点一下，把绿色起点移过去。',
       goal: '终点工具：在一块新的空地上点一下，把珊瑚色终点移过去。',
       terrain: '高成本工具：点击可通行格，进入该格的成本设为 5。',
@@ -176,24 +188,23 @@ function refresh() {
   } else if (lesson.step === LESSON_STEPS.length) {
     $('coach').textContent = '太棒了，四步全部完成！现在可以自由布置地图，给机器人留一条通道。';
     $('lesson-button').textContent = '再学一遍';
-    $('board-hint').textContent = '教程已完成，现在轮到你自由创作';
+    $('board-hint').textContent = mode===MODES.obstacle?obstacleHint:'选择工具，然后在地图上点一下';
   } else {
     $('coach').textContent = '点击下方按钮，开始一次手把手的练习。';
     $('lesson-button').textContent = '开始动手教程 →';
-    $('board-hint').textContent = '选择工具，然后在地图上点一下';
+    $('board-hint').textContent = mode===MODES.obstacle?obstacleHint:'选择工具，然后在地图上点一下';
   }
   draw();
 }
-function edit(cell) {
-  if (robot && mode === MODES.obstacle && grid.inBounds(cell)) { editRobotObstacle(cell); return; }
-  const before = grid.snapshot();
+function edit(cell, {blocked = null, stroke = null, deferUI = false} = {}) {
+  if (robot && mode === MODES.obstacle && grid.inBounds(cell)) return editRobotObstacle(cell,{blocked,stroke,deferUI});
+  const before = stroke?.historySaved ? null : grid.snapshot();
   const beforeLesson = { ...lesson, target: lesson.target && [...lesson.target] };
   const beforeMode = mode;
-  const result = applyEdit(grid, mode, cell);
+  const result = mode===MODES.obstacle&&blocked!==null ? applyObstacleEdit(grid,cell,blocked) : applyEdit(grid, mode, cell);
   if (result.changed) {
-    invalidateSearch();
-    history.push({ map: before, mode: beforeMode, lesson: beforeLesson });
-    if (history.length > 60) history.shift();
+    invalidateSearch(!deferUI);
+    rememberEdit(before,beforeMode,beforeLesson,stroke);
     const previousStep = lesson.step;
     lesson = advanceLesson(lesson, result);
     if (lesson.active && lesson.step !== previousStep) chooseMode(LESSON_STEPS[lesson.step].mode, false);
@@ -202,9 +213,10 @@ function edit(cell) {
       setStatus('四步教程完成！你已经学会地图编辑，可以开始自由创作了。');
     } else setStatus(result.message);
   } else setStatus(result.message, true);
-  refresh();
+  if(!deferUI)refresh();return result.changed;
 }
 function restartLessonForMapChange() {
+  finishStroke();
   invalidateSearch();
   if (lesson.active) { lesson = newLesson(); chooseMode(MODES.obstacle, false); }
   hover = null;
@@ -212,6 +224,7 @@ function restartLessonForMapChange() {
   viewport.scrollTo(0, 0);
 }
 function undo() {
+  finishStroke();
   const previous = history.pop();
   if (!previous) return;
   grid = new Grid(previous.map.rows, previous.map.cols, previous.map);
@@ -224,7 +237,7 @@ function undo() {
   setStatus('已撤销上一步，地图和教程进度一起恢复了。');
   refresh();
 }
-function openWelcome() { if (!$('welcome-dialog').open) $('welcome-dialog').showModal(); }
+function openWelcome() { finishStroke();if (!$('welcome-dialog').open) $('welcome-dialog').showModal(); }
 function closeWelcome() { $('welcome-dialog').close(); rememberWelcome(); }
 function startLesson() {
   closeWelcome();
@@ -330,20 +343,53 @@ function editAtPointer(event) {
   if (cell) focusCell = [...cell];
   edit(cell);
 }
+function finishStroke() {
+  if(!activeStroke)return;
+  const session=activeStroke;activeStroke=null;session.path.end();
+  if(canvas.hasPointerCapture(session.pointerId))canvas.releasePointerCapture(session.pointerId);
+  if(session.historySaved&&!robot)setStatus('本笔障碍编辑已结束，点击撤销可一次恢复整笔。');
+}
+function paintStroke(cell) {
+  const session=activeStroke;if(!session)return false;
+  session.request=null;let changed=false;
+  for(const point of session.path.visit(cell)){
+    focusCell=[...point];
+    changed=edit(point,{blocked:session.path.blocked,stroke:session,deferUI:true})||changed;
+  }
+  if(changed){
+    if(session.request)dispatchReplan(session.request);
+    else{renderMetrics();syncSearchControls();if(!robot)setStatus(`${session.path.blocked?'连续添加':'连续擦除'}障碍中，松开左键结束；一次撤销可恢复整笔。`);}
+    refresh();
+  }
+  return changed;
+}
 let touchStart = null;
 canvas.addEventListener('pointerdown', event => {
-  if (event.pointerType === 'touch') { touchStart = [event.clientX, event.clientY]; return; }
-  editAtPointer(event);
+  if(event.isPrimary===false)return;
+  if (event.pointerType === 'touch') { touchStart = {id:event.pointerId,x:event.clientX,y:event.clientY};return; }
+  finishStroke();
+  const cell=pointerCell(event);
+  if(event.button!==0||mode!==MODES.obstacle||lesson.active||!cell){editAtPointer(event);return;}
+  event.preventDefault();canvas.focus({preventScroll:true});
+  activeStroke={pointerId:event.pointerId,path:new ObstacleStroke(grid,cell),historySaved:false,request:null};
+  canvas.setPointerCapture(event.pointerId);paintStroke(cell);
 });
 canvas.addEventListener('pointerup', event => {
-  if (event.pointerType === 'touch' && touchStart && Math.hypot(event.clientX - touchStart[0], event.clientY - touchStart[1]) < 8) editAtPointer(event);
-  touchStart = null;
+  if(activeStroke?.pointerId===event.pointerId){paintStroke(pointerCell(event));finishStroke();}
+  if(event.pointerType==='touch'&&touchStart?.id===event.pointerId){
+    if(Math.hypot(event.clientX-touchStart.x,event.clientY-touchStart.y)<8)editAtPointer(event);
+    touchStart=null;
+  }
 });
-canvas.addEventListener('pointercancel', () => { touchStart = null; });
+canvas.addEventListener('pointercancel', event => {if(activeStroke?.pointerId===event.pointerId)finishStroke();if(touchStart?.id===event.pointerId)touchStart=null;});
+canvas.addEventListener('lostpointercapture',event=>{if(activeStroke?.pointerId===event.pointerId)finishStroke();});
 canvas.addEventListener('pointermove', event => {
   hover = pointerCell(event);
   $('pointer-label').textContent = hover ? `第 ${hover[0] + 1} 列 · 第 ${hover[1] + 1} 行` : '网格内点击编辑';
-  draw();
+  if(activeStroke?.pointerId===event.pointerId){
+    if(!(event.buttons&1)){finishStroke();draw();}
+    else if(!paintStroke(hover))draw();
+  }else draw();
 });
 canvas.addEventListener('pointerleave', () => { hover = null; $('pointer-label').textContent = '网格内点击编辑'; draw(); });
 canvas.addEventListener('contextmenu', event => event.preventDefault());
@@ -351,9 +397,11 @@ canvas.addEventListener('focus', draw); canvas.addEventListener('blur', draw);
 for (const button of document.querySelectorAll('[data-mode]')) button.addEventListener('click', () => chooseMode(button.dataset.mode));
 $('undo-button').addEventListener('click', undo);
 $('cell-size').addEventListener('input', () => {
+  finishStroke();
   cellSize = Number($('cell-size').value); $('cell-size-label').textContent = `${cellSize} 像素/格`; draw();
 });
 $('reset-view').addEventListener('click', () => {
+  finishStroke();
   cellSize = 28; $('cell-size').value = '28'; $('cell-size-label').textContent = '28 像素/格'; viewport.scrollTo(0, 0); draw();
 });
 viewport.addEventListener('scroll', draw, { passive: true });
@@ -362,6 +410,7 @@ $('control-panel').addEventListener('toggle', () => {
   requestAnimationFrame(draw);
 });
 function startSearch(compare = false) {
+  finishStroke();
   playback.reset(); robot = null; planner = null; searching = true; requestId++;
   searchWorker.postMessage({ id: requestId, version: mapVersion, map: grid.snapshot(), algorithm: $('algorithm').value, compare });
   syncSearchControls(); draw();
@@ -426,6 +475,7 @@ function fullscreenUI() {
   requestAnimationFrame(draw);
 }
 async function toggleFullscreen() {
+  finishStroke();
   if (document.fullscreenElement) await document.exitFullscreen();
   immersive = !immersive;
   if (immersive) { controlsWereOpen = $('control-panel').open; $('control-panel').open = false; }
@@ -442,6 +492,7 @@ document.addEventListener('keydown', event => {
   if (typing || $('welcome-dialog').open) return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); undo(); return; }
   if (event.ctrlKey || event.metaKey || event.altKey) return;
+  if(event.key==='Escape')finishStroke();
   const numberModes = { '1': MODES.obstacle, '2': MODES.start, '3': MODES.goal, '4': MODES.terrain, '5': MODES.plain };
   if (numberModes[event.key]) chooseMode(numberModes[event.key]);
   if (event.key.toLowerCase() === 'h') { event.preventDefault(); openWelcome(); }
@@ -459,7 +510,7 @@ document.addEventListener('keydown', event => {
       else if (py + cellSize > viewport.clientHeight) viewport.scrollTop += py + cellSize - viewport.clientHeight;
       draw();
     }
-    if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); edit(focusCell); }
+    if (event.key === ' ' || event.key === 'Enter') { event.preventDefault();finishStroke();edit(focusCell); }
   }
 });
 new ResizeObserver(draw).observe(viewport);
@@ -476,7 +527,8 @@ function animate(timestamp) {
   if (robotIndex !== robot?.index || robotState !== robot?.state) { syncSearchControls(); draw(); }
   requestAnimationFrame(animate);
 }
-document.addEventListener('visibilitychange', () => { lastFrame = null; if (document.hidden) { playback.pause(); planner?.pause(); syncSearchControls(); } });
+window.addEventListener('blur',()=>{finishStroke();touchStart=null;});
+document.addEventListener('visibilitychange', () => { lastFrame = null; if (document.hidden) { finishStroke();touchStart=null;playback.pause(); planner?.pause(); syncSearchControls(); } });
 requestAnimationFrame(animate);
 syncInputs(); refresh(); fullscreenUI(); syncSearchControls(); renderMetrics();
 if (!hasSeenWelcome() || params.get('tutorial') === '1') openWelcome();

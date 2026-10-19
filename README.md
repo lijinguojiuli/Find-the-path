@@ -44,6 +44,9 @@ BFS 优化步数，Dijkstra/A* 优化累计成本；A* 使用最小进入成本�
 6. 如果需要整个浏览器窗口最大化，使用窗口右上角的最大化按钮，不使用 F11。
 
 点错了可以点撤销或按 Ctrl+Z。尺寸输入非法时显示中文错误并保留原地图。
+自由编辑时，选「障碍物」后按住鼠标左键拖动即可连续布置；从已有障碍上按下则连续擦除。
+同一笔回拖不会反复翻转，快速拖动会补齐中间格子，松开结束；一次撤销恢复整笔。起终点和机器人当前格仍受保护。
+教程保留原来的单击练习，触屏保留轻点编辑和滑动地图。说明与验收见 [连续障碍编辑](docs/obstacle-drag.md)。
 网页不需要安装 npm 依赖，使用原生 HTML/CSS/JavaScript；Python 标准库提供本地服务。
 
 操作顺序：选择算法 → 开始搜索 → 暂停/单步观察 → 路径显示完成 → 机器人出发。
@@ -175,7 +178,7 @@ Python 当前共 1047 项测试，包含固定种子随机地图、独立参考�
 pytest 的缓存和临时目录已配置在项目内；`.test_tmp/pytest` 专供测试使用，运行时会清空。
 详见 [pytest 临时目录说明](https://docs.pytest.org/en/stable/how-to/tmp_path.html)。
 
-网页模型、搜索、播放、统计、地形、机器人、视图、重规划与迷宫提供 385 项 Node.js 原生测试：
+网页模型、搜索、播放、统计、地形、机器人、视图、重规划与迷宫提供 397 项 Node.js 原生测试：
 
 ```powershell
 node --test web/model.test.mjs web/search.test.mjs web/metrics.test.mjs web/terrain.test.mjs web/robot.test.mjs web/viewport.test.mjs web/replanning.test.mjs web/search-worker.test.mjs web/audit.test.mjs

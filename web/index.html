@@ -34,7 +34,7 @@
   <main class="layout">
     <aside class="sidebar">
       <section class="card comparison-card"><h2>同一地图，公平比较</h2><details id="comparison-details"><summary>查看本次对比结果</summary><div class="table-scroll"><table><thead><tr><th>算法</th><th>步数</th><th>成本</th><th>访问数</th><th>耗时/ms</th></tr></thead><tbody id="comparison-body"></tbody></table></div><p>同一张地图、四方向移动。耗时不含动画、绘制与暂停；单次结果不能代表算法总是更快。</p></details></section>
-      <section class="card quick-guide"><h2>搜索和移动怎么玩？</h2><ol><li>用工具设置地图、起点和终点。</li><li>展开控制区，选择算法，点击「开始搜索」。蓝色是访问过的节点，金色是最终路径。</li><li>点「暂停」后可单步观察；调节速度改变播放快慢。</li><li>路径显示完成后，点击「机器人出发」。蓝色圆形机器人沿路径移动，到终点自动停下。</li><li>移动时可以添加障碍；挡住剩余路径会自动 A* 重规划。改起终点或地形会结束当前移动。「重置搜索」可重新开始实验。</li></ol><p>未探索的空地保持白色，起点和终点始终保留原色。搜索速度与移动速度分别调整，切到其他标签页时自动暂停。</p></section>
+      <section class="card quick-guide"><h2>搜索和移动怎么玩？</h2><ol><li>用工具设置地图、起点和终点。障碍物可按住左键拖动连续布置；从已有障碍上按下可连续擦除，一次撤销恢复整笔。</li><li>展开控制区，选择算法，点击「开始搜索」。蓝色是访问过的节点，金色是最终路径。</li><li>点「暂停」后可单步观察；调节速度改变播放快慢。</li><li>路径显示完成后，点击「机器人出发」。蓝色圆形机器人沿路径移动，到终点自动停下。</li><li>移动时可以添加障碍；挡住剩余路径会自动 A* 重规划。改起终点或地形会结束当前移动。「重置搜索」可重新开始实验。</li></ol><p>未探索的空地保持白色，起点和终点始终保留原色。搜索速度与移动速度分别调整，切到其他标签页时自动暂停。</p></section>
       <section class="card terrain-guide"><h2>移动中添加障碍，看看会怎样</h2><p>选障碍物工具，点击机器人前方的金色路径。A* 会从当前位置重新规划；路径外的障碍不会打断移动，蓝色机器人所在格受到保护。</p><p>无路时机器人原地停止。清除障碍后，点「当前位置重规划」重试；原来暂停的机器人，重规划成功后仍保持暂停。</p><button id="dynamic-demo" class="button outline full-width">载入动态重规划示例</button></section>
       <section class="card terrain-guide"><h2>走得短，不一定更划算</h2><p>普通地面成本 1，高成本地形成本 5。每进入一个格子支付它的成本，起点不收费。</p><p>按 4 涂高成本地形，按 5 恢复普通地面。BFS 优化步数；Dijkstra 和 A* 优化总代价。</p><button id="terrain-demo" class="button outline full-width">载入成本对比示例</button></section>
       <section class="card lesson-card" aria-labelledby="lesson-title">
@@ -71,10 +71,10 @@
       </div><div class="edit-actions"><button id="undo-button" class="icon-button" title="撤销上一步（Ctrl+Z）" aria-label="撤销上一步" disabled><svg><use href="#i-undo"/></svg></button><span class="divider"></span><button id="clear-button" class="text-button">清除障碍</button></div></div>
       <div class="board-caption"><h2 id="editor-title">我的探索地图</h2><span id="dimensions-label">20 行 × 30 列</span></div>
       <div class="view-tools"><label for="cell-size">格子大小</label><input id="cell-size" type="range" min="16" max="48" step="2" value="28"><output id="cell-size-label" for="cell-size">28 像素/格</output><button id="reset-view" class="text-button">重置视图</button><span>地图可上下、左右滚动</span></div>
-      <div id="board-viewport" class="board-viewport" role="region" aria-label="可滚动地图"><div id="board-container" class="board-container"><canvas id="grid-canvas" tabindex="0" role="application" aria-label="机器人网格地图。数字键 1 障碍、2 起点、3 终点、4 高成本、5 普通地面，鼠标点击编辑。也可用方向键选择格子，空格键确认。"></canvas></div></div>
-      <div class="board-hint" id="board-hint">选择工具，然后在地图上点一下</div>
+      <div id="board-viewport" class="board-viewport" role="region" aria-label="可滚动地图"><div id="board-container" class="board-container"><canvas id="grid-canvas" tabindex="0" role="application" aria-label="机器人网格地图。数字键 1 障碍、2 起点、3 终点、4 高成本、5 普通地面，鼠标点击编辑，障碍物支持按住左键拖动连续布置或擦除。也可用方向键选择格子，空格键确认。"></canvas></div></div>
+      <div class="board-hint" id="board-hint">障碍物：按住左键拖动布置；从障碍上拖动擦除，一次撤销恢复整笔</div>
       <div class="board-bottom"><div class="legend"><span><i class="empty"></i>未探索</span><span><i class="obstacle"></i>障碍物</span><span><i class="terrain"></i>高成本 5</span><span><i class="visited"></i>已探索</span><span><i class="path"></i>最终路径</span><span><i class="start"></i>起点</span><span><i class="goal"></i>终点</span><span><i class="robot"></i>机器人</span></div><span id="pointer-label" class="pointer-label">网格内点击编辑</span></div>
-      <div id="status" class="status" role="status" aria-live="polite"><span class="status-dot"></span><span id="status-text">先选「障碍物」，点击空地试试看。再点一次就能清除。</span></div>
+      <div id="status" class="status" role="status" aria-live="polite"><span class="status-dot"></span><span id="status-text">选择「障碍物」，按住左键拖动连续布置；从障碍上按下可连续擦除。</span></div>
     </section>
   </main>
   <footer class="page-footer"><span>寻路实验室 · 地图编辑、地形成本与机器人模拟</span><span id="map-summary">已放置 9 块障碍</span></footer>
