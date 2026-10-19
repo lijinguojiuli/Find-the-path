@@ -1,0 +1,52 @@
+/* Both laboratories are peer destinations, including on narrow screens. */
+.topbar.lab-header,header.lab-header {
+  display:grid;
+  grid-template-columns:minmax(180px,1fr) auto minmax(180px,1fr);
+  gap:16px;
+  align-items:center;
+  height:auto;
+  min-height:64px;
+  padding:8px 0;
+}
+.lab-header .brand {min-width:0;white-space:nowrap;}
+.lab-header .header-actions {margin-left:0;justify-self:end;gap:8px;}
+.lab-navigation {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  min-width:254px;
+  gap:4px;
+  padding:4px;
+  background:#eaf1ec;
+  border:1px solid #d9e5dd;
+  border-radius:11px;
+}
+.lab-navigation a {
+  display:block;
+  padding:8px 16px;
+  border:0;
+  border-radius:7px;
+  text-align:center;
+  text-decoration:none;
+  font-size:14px;
+  font-weight:600;
+  line-height:1.4;
+  letter-spacing:0;
+  white-space:nowrap;
+  color:#627c70;
+}
+.lab-navigation a:hover {background:#f5faf6;color:#087f73;}
+.lab-navigation a[aria-current="page"] {background:white;color:#087f73;box-shadow:0 2px 7px #1e493012;}
+.lab-navigation a:focus-visible {outline:3px solid #e9b65a;outline-offset:2px;}
+@media(max-width:1000px) {
+  .topbar.lab-header,header.lab-header {grid-template-columns:1fr auto;gap:7px;min-height:0;}
+  .lab-navigation {grid-column:1/-1;grid-row:2;justify-self:stretch;min-width:0;}
+  .lab-navigation a {padding:7px 12px;}
+}
+@media(max-width:480px) {
+  .topbar.lab-header,header.lab-header {gap:6px;padding:6px 0;}
+  .lab-header .brand {font-size:15px;gap:8px;}
+  .lab-header .brand small {display:none;}
+  .lab-header .brand-icon,.lab-header .brand-mark {width:32px;height:32px;flex-shrink:0;}
+  .lab-header .header-actions {gap:4px;}
+  .lab-navigation a {font-size:13px;}
+}

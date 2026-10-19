@@ -8,6 +8,7 @@
   <title>寻路实验室 · 观察算法，走出路线</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='11' fill='%23087f73'/%3E%3Cpath d='M11 27V13h18v14H19' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./lab-navigation.css">
 </head>
 <body>
 <svg class="svg-library" aria-hidden="true"><defs>
@@ -21,16 +22,15 @@
   <symbol id="i-reset" viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></symbol>
 </defs></svg>
 <div class="app-shell">
-  <header class="topbar">
-    <a class="brand" href="./" aria-label="寻路实验室首页"><span class="brand-icon"><svg><use href="#i-path"/></svg></span><span>寻路实验室<small>让探索，从这里出发</small></span></a>
-    <span class="chapter"><span></span>机器人路径规划</span>
+  <header class="topbar lab-header">
+    <a class="brand" href="./" aria-label="寻路实验室"><span class="brand-icon"><svg><use href="#i-path"/></svg></span><span>寻路实验室<small>编辑地图 · 机器人模拟</small></span></a>
+    <nav class="lab-navigation" aria-label="实验室切换"><a href="./" aria-current="page">寻路实验室</a><a href="./maze/">迷宫实验室</a></nav>
     <div class="header-actions">
-      <a class="button quiet" href="./maze/">迷宫演示</a>
       <button id="help-button" class="button quiet" aria-label="新手教程"><svg><use href="#i-help"/></svg><span>新手教程</span><kbd>H</kbd></button>
       <button id="fullscreen-button" class="button fullscreen" title="铺满浏览器可用区域，保留底部系统任务栏"><svg><use href="#i-expand"/></svg><span id="fullscreen-label">大屏模式</span><kbd>F</kbd></button>
     </div>
   </header>
-  <section class="page-heading"><div><div class="eyebrow">动手探索 · 路径规划</div><h1>画好地图，观察算法如何找到路<span>。</span></h1><p>展开「寻路与机器人控制」开始搜索；地图支持缩放和滚动查看。</p></div><div class="ready"><span></span>实验台已就绪</div></section>
+  <section class="page-heading"><div><div class="eyebrow">动手探索 · 路径规划</div><h1>画好地图，观察算法如何找到路<span>。</span></h1><p>展开「寻路与机器人控制」开始搜索；地图支持缩放和滚动查看。</p></div><div class="ready"><span></span>实验室已就绪</div></section>
   <main class="layout">
     <aside class="sidebar">
       <section class="card comparison-card"><h2>同一地图，公平比较</h2><details id="comparison-details"><summary>查看本次对比结果</summary><div class="table-scroll"><table><thead><tr><th>算法</th><th>步数</th><th>成本</th><th>访问数</th><th>耗时/ms</th></tr></thead><tbody id="comparison-body"></tbody></table></div><p>同一张地图、四方向移动。耗时不含动画、绘制与暂停；单次结果不能代表算法总是更快。</p></details></section>
@@ -77,7 +77,7 @@
       <div id="status" class="status" role="status" aria-live="polite"><span class="status-dot"></span><span id="status-text">先选「障碍物」，点击空地试试看。再点一次就能清除。</span></div>
     </section>
   </main>
-  <footer class="page-footer"><span>每一次探索，都从一张地图开始。</span><span id="map-summary">已放置 9 块障碍</span></footer>
+  <footer class="page-footer"><span>寻路实验室 · 地图编辑、地形成本与机器人模拟</span><span id="map-summary">已放置 9 块障碍</span></footer>
 </div>
 <dialog id="welcome-dialog" aria-labelledby="welcome-title"><button class="modal-close" id="welcome-close" aria-label="关闭教程介绍">×</button><div class="welcome-art" aria-hidden="true"><div class="art-grid"></div><span class="art-start">起</span><span class="art-wall one"></span><span class="art-wall two"></span><span class="art-goal">终</span><svg viewBox="0 0 240 100"><path d="M32 72H84V27H164V72H211"/></svg><span class="art-spark">✦</span></div><div class="modal-eyebrow">欢迎来到寻路实验室</div><h2 id="welcome-title">不用猜怎么玩，<br>我们一起做一遍。</h2><p>跟着四步小教程，学会添加障碍、清除障碍，再为机器人设置起点和终点。</p><div class="welcome-tags"><span>全中文操作</span><span>随时可撤销</span><span>大屏保留任务栏</span></div><button id="welcome-start" class="button primary full-width">开始四步动手教程 <span>→</span></button><button id="welcome-skip" class="text-button">我想先自己试试</button></dialog>
 <script type="module" src="./app.js"></script>
